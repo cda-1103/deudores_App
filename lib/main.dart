@@ -118,11 +118,11 @@ class _MainLayoutState extends State<MainLayout> {
                   // Logo
                   ClipRRect(
                     borderRadius: BorderRadius.circular(100),
-                    child: Image.asset('assets/logo.jpg',
-                        height: 100, width: 100, fit: BoxFit.cover),
+                    child: Image.asset('lib/assets/logo2.PNG',
+                        height: 300, width: 300, fit: BoxFit.cover),
                   ),
                   const SizedBox(height: 10),
-                  const Text("BBT LICORES",
+                  const Text("BBT TIENDA DE LICORES",
                       style: TextStyle(
                           color: Colors.white,
                           fontWeight: FontWeight.bold,
