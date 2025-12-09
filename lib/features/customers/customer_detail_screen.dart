@@ -52,7 +52,70 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen>
     super.dispose();
   }
 
-  // --- GENERAR REPORTE PDF ---
+  // --- NUEVO: EDITAR DATOS DEL CLIENTE ---
+  Future<void> _editCustomerData(Map<String, dynamic> currentData) async {
+    final nameCtrl = TextEditingController(text: currentData['name']);
+    final phoneCtrl = TextEditingController(text: currentData['phone'] ?? '');
+
+    await showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+              backgroundColor: AppTheme.surface,
+              title: const Text("Editar Cliente",
+                  style: TextStyle(color: Colors.white)),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(
+                    controller: nameCtrl,
+                    style: const TextStyle(color: Colors.white),
+                    decoration: const InputDecoration(
+                        labelText: "Nombre",
+                        prefixIcon: Icon(Icons.person, color: Colors.grey)),
+                  ),
+                  const SizedBox(height: 15),
+                  TextField(
+                    controller: phoneCtrl,
+                    keyboardType: TextInputType.phone,
+                    style: const TextStyle(color: Colors.white),
+                    decoration: const InputDecoration(
+                        labelText: "Teléfono",
+                        prefixIcon: Icon(Icons.phone, color: Colors.grey)),
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                    onPressed: () => Navigator.pop(ctx),
+                    child: const Text("Cancelar",
+                        style: TextStyle(color: Colors.grey))),
+                ElevatedButton(
+                    onPressed: () async {
+                      if (nameCtrl.text.trim().isEmpty) return;
+
+                      try {
+                        await _supabase.from('customers').update({
+                          'name': nameCtrl.text.trim(),
+                          'phone': phoneCtrl.text.trim(),
+                        }).eq('id', widget.customerId);
+
+                        if (mounted) {
+                          Navigator.pop(ctx);
+                          ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                  content: Text(
+                                      "Datos actualizados correctamente")));
+                        }
+                      } catch (e) {
+                        ScaffoldMessenger.of(context)
+                            .showSnackBar(SnackBar(content: Text("Error: $e")));
+                      }
+                    },
+                    child: const Text("Guardar"))
+              ],
+            ));
+  }
+
   Future<void> _exportToPdf(double currentBalance) async {
     showDialog(
         context: context,
@@ -77,8 +140,16 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen>
           return;
         }
 
+        // Buscamos el nombre más reciente (por si se acaba de editar)
+        final customerNow = await _supabase
+            .from('customers')
+            .select('name')
+            .eq('id', widget.customerId)
+            .single();
+        final currentName = customerNow['name'] ?? widget.customerName;
+
         await ReportGenerator.generateAccountStatement(
-          customerName: widget.customerName,
+          customerName: currentName,
           customerId: widget.customerId,
           currentBalance: currentBalance,
           movements: movements,
@@ -93,7 +164,6 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen>
     }
   }
 
-  // --- BORRAR CLIENTE ---
   Future<void> _deleteThisCustomer() async {
     final passwordCtrl = TextEditingController();
     bool? authorized = await showDialog<bool>(
@@ -153,7 +223,8 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen>
           IconButton(
             icon: const Icon(Icons.picture_as_pdf, color: Colors.white),
             tooltip: "Exportar Historial PDF",
-            onPressed: () => _exportToPdf(widget.initialBalance),
+            onPressed: () => _exportToPdf(widget
+                .initialBalance), // Usamos el balance inicial temporalmente, pero se recalculá en el método
           ),
           const SizedBox(width: 10),
         ],
@@ -162,6 +233,10 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen>
         stream: _customerStream,
         builder: (context, snapshot) {
           final customerData = snapshot.data;
+
+          // Usamos el nombre del stream si está disponible (para ver cambios en vivo)
+          final displayName = customerData?['name'] ?? widget.customerName;
+
           final currentBalance =
               (customerData != null && customerData.isNotEmpty)
                   ? (customerData['current_balance'] as num).toDouble()
@@ -181,8 +256,8 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen>
                             radius: 35,
                             backgroundColor: AppTheme.primary,
                             child: Text(
-                                widget.customerName.isNotEmpty
-                                    ? widget.customerName[0].toUpperCase()
+                                displayName.isNotEmpty
+                                    ? displayName[0].toUpperCase()
                                     : "?",
                                 style: const TextStyle(
                                     fontSize: 32, color: Colors.white))),
@@ -191,14 +266,49 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen>
                             child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                              Text(widget.customerName,
-                                  style: const TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 24,
-                                      fontWeight: FontWeight.bold)),
+                              // FILA DE NOMBRE + BOTÓN EDITAR
+                              Row(
+                                children: [
+                                  Flexible(
+                                    child: Text(displayName,
+                                        style: const TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 24,
+                                            fontWeight: FontWeight.bold),
+                                        overflow: TextOverflow.ellipsis),
+                                  ),
+                                  const SizedBox(width: 10),
+                                  IconButton(
+                                    icon: const Icon(Icons.edit,
+                                        color: Colors.blue, size: 20),
+                                    tooltip: "Editar Datos",
+                                    padding: EdgeInsets.zero,
+                                    constraints: const BoxConstraints(),
+                                    onPressed: () {
+                                      if (customerData != null) {
+                                        _editCustomerData(customerData);
+                                      }
+                                    },
+                                  )
+                                ],
+                              ),
                               Text(
                                   "ID: ...${widget.customerId.substring(0, 6)}",
-                                  style: const TextStyle(color: Colors.grey))
+                                  style: const TextStyle(color: Colors.grey)),
+                              const SizedBox(height: 5),
+                              Row(
+                                children: [
+                                  const Icon(Icons.phone,
+                                      size: 16, color: Colors.grey),
+                                  const SizedBox(width: 5),
+                                  Text(
+                                      phone != null && phone.isNotEmpty
+                                          ? phone
+                                          : "Sin teléfono",
+                                      style:
+                                          const TextStyle(color: Colors.grey)),
+                                ],
+                              )
                             ])),
                       ],
                     ),
@@ -244,7 +354,10 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen>
                           const SizedBox(height: 10),
                           OutlinedButton.icon(
                               onPressed: () => _launchWhatsApp(
-                                  phone, currentBalance, provider),
+                                  phone,
+                                  currentBalance,
+                                  provider,
+                                  displayName), // Pasamos el nombre actual
                               icon: const Icon(Icons.message, size: 18),
                               label: const Text("WhatsApp"),
                               style: OutlinedButton.styleFrom(
@@ -329,7 +442,6 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen>
             final dateStr = DateFormat('dd/MM/yyyy')
                 .format(DateTime.parse(mov['created_at']).toLocal());
             return ListTile(
-              // Click para ver detalle
               onTap: (type == 'DEBT' && mov['sale_id'] != null)
                   ? () => _showSaleDetail(mov['sale_id'], dateStr)
                   : null,
@@ -352,7 +464,6 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen>
     );
   }
 
-  // --- MOSTRAR DETALLE DE VENTA RESTAURADO ---
   void _showSaleDetail(String saleId, String dateStr) async {
     showDialog(
         context: context,
@@ -433,11 +544,9 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen>
     }
   }
 
-  // --- REGISTRAR ABONO (FUNCIONANDO AL 100%) ---
   void _showPaymentDialog(BuildContext context, double currentBalance) {
     final amountCtrl = TextEditingController();
     String? selectedMethod;
-    // Buscamos los métodos en BD
     final paymentMethodsFuture =
         _supabase.from('payment_methods').select().order('name');
 
@@ -456,8 +565,6 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen>
                 Text("Deuda actual: \$${currentBalance.toStringAsFixed(2)}",
                     style: const TextStyle(color: Colors.grey)),
                 const SizedBox(height: 20),
-
-                // Selector de Forma de Pago
                 FutureBuilder<List<Map<String, dynamic>>>(
                   future: paymentMethodsFuture,
                   builder: (context, snapshot) {
@@ -469,10 +576,8 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen>
                               child: CircularProgressIndicator(
                                   strokeWidth: 2, color: Colors.white)));
                     final methods = snapshot.data!;
-
-                    if (selectedMethod == null && methods.isNotEmpty) {
+                    if (selectedMethod == null && methods.isNotEmpty)
                       selectedMethod = methods.first['name'];
-                    }
 
                     return DropdownButtonFormField<String>(
                       value: selectedMethod,
@@ -492,7 +597,6 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen>
                     );
                   },
                 ),
-
                 const SizedBox(height: 15),
                 TextField(
                   controller: amountCtrl,
@@ -544,8 +648,8 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen>
     );
   }
 
-  void _launchWhatsApp(
-      String? phone, double amount, AppStateProvider provider) async {
+  void _launchWhatsApp(String? phone, double amount, AppStateProvider provider,
+      String currentName) async {
     if (phone == null || phone.length < 10) {
       ScaffoldMessenger.of(context)
           .showSnackBar(const SnackBar(content: Text("Teléfono inválido")));
@@ -561,7 +665,7 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen>
     final dateStr = DateFormat('dd/MM/yyyy').format(DateTime.now());
 
     final message = """
-Hola ${widget.customerName}, le escribimos de *BBT TIENDA DE LICORES*.
+Hola $currentName, le escribimos de *BBT TIENDA DE LICORES*.
 
 Fecha: $dateStr
 Tasa: $rateStr Bs/\$
