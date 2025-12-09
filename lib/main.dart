@@ -8,10 +8,12 @@ import 'features/sales/pos_screen.dart';
 import 'features/customers/customers_screen.dart';
 import 'features/dashboard/dashboard_screen.dart';
 import 'features/settings/settings_screen.dart';
+import 'features/payments/payments_screen.dart'; // Importamos la nueva pantalla
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
+  // COLOCA TUS CLAVES AQUÍ
   await Supabase.initialize(
     url: 'https://qpkzbwbynpmwujekoavu.supabase.co',
     anonKey: 'sb_publishable_3rhNR4Qx6mcmVLZLUMUe8g_egxGs8oL',
@@ -32,7 +34,7 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     final session = Supabase.instance.client.auth.currentSession;
     return MaterialApp(
-      title: 'BBT TIENDA DE LICORES',
+      title: 'BBT Licores',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.darkTheme,
       home: session != null ? const MainLayout() : const LoginScreen(),
@@ -50,10 +52,11 @@ class _MainLayoutState extends State<MainLayout> {
   int _selectedIndex = 0;
 
   final List<Widget> _screens = [
-    const DashboardScreen(),
-    const PosScreen(),
-    const CustomersScreen(),
-    const SettingsScreen(),
+    const DashboardScreen(), // 0
+    const PosScreen(), // 1
+    const PaymentsScreen(), // 2 (Nuevo Módulo de Abonos)
+    const CustomersScreen(), // 3
+    const SettingsScreen(), // 4
   ];
 
   @override
@@ -68,8 +71,8 @@ class _MainLayoutState extends State<MainLayout> {
           ? Container(
               color: AppTheme.surface, // Color de fondo de la barra
               child: Padding(
-                // Añadimos padding inferior: el área segura + un extra (ej: 10)
-                padding: EdgeInsets.only(bottom: bottomPadding + 10.0),
+                // Añadimos padding inferior: el área segura + un extra (ej: 5)
+                padding: EdgeInsets.only(bottom: bottomPadding + 5.0),
                 child: BottomNavigationBar(
                   currentIndex: _selectedIndex,
                   onTap: (i) => setState(() => _selectedIndex = i),
@@ -77,14 +80,17 @@ class _MainLayoutState extends State<MainLayout> {
                       .transparent, // Transparente para que se vea el contenedor
                   selectedItemColor: AppTheme.primary,
                   unselectedItemColor: Colors.grey,
-                  type: BottomNavigationBarType.fixed,
-                  elevation:
-                      0, // Quitamos la sombra del BottomNavigationBar para que se fusione
+                  type: BottomNavigationBarType
+                      .fixed, // Necesario para más de 3 items
+                  elevation: 0,
                   items: const [
                     BottomNavigationBarItem(
                         icon: Icon(Icons.dashboard), label: 'Dash'),
                     BottomNavigationBarItem(
                         icon: Icon(Icons.point_of_sale), label: 'Venta'),
+                    BottomNavigationBarItem(
+                        icon: Icon(Icons.attach_money),
+                        label: 'Abonos'), // Nuevo Ícono
                     BottomNavigationBarItem(
                         icon: Icon(Icons.people), label: 'Clientes'),
                     BottomNavigationBarItem(
@@ -98,7 +104,7 @@ class _MainLayoutState extends State<MainLayout> {
       // MÓVIL: AppBar sencilla para el título y Logout
       appBar: isMobile
           ? AppBar(
-              title: const Text("BBT TIENDA DE LICORES",
+              title: const Text("BBT LICORES",
                   style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
               backgroundColor: AppTheme.surface,
               elevation: 0,
@@ -153,18 +159,23 @@ class _MainLayoutState extends State<MainLayout> {
                       isActive: _selectedIndex == 1,
                       onTap: () => setState(() => _selectedIndex = 1)),
                   _SidebarItem(
-                      icon: Icons.people,
-                      label: "Clientes",
+                      icon: Icons.attach_money,
+                      label: "Registrar Abono",
                       isActive: _selectedIndex == 2,
                       onTap: () => setState(() => _selectedIndex = 2)),
+                  _SidebarItem(
+                      icon: Icons.people,
+                      label: "Clientes",
+                      isActive: _selectedIndex == 3,
+                      onTap: () => setState(() => _selectedIndex = 3)),
 
                   const Spacer(),
 
                   _SidebarItem(
                       icon: Icons.settings,
                       label: "Configuración",
-                      isActive: _selectedIndex == 3,
-                      onTap: () => setState(() => _selectedIndex = 3)),
+                      isActive: _selectedIndex == 4,
+                      onTap: () => setState(() => _selectedIndex = 4)),
                   _SidebarItem(
                     icon: Icons.logout,
                     label: "Cerrar Sesión",
@@ -188,7 +199,8 @@ class _MainLayoutState extends State<MainLayout> {
             child: Container(
               color: AppTheme.background,
               child: SafeArea(
-                bottom: false, // Ya lo manejamos en el BottomNavigationBar
+                bottom:
+                    false, // Ya lo manejamos en el BottomNavigationBar manualmente
                 child: Padding(
                   padding: isMobile
                       ? const EdgeInsets.symmetric(
