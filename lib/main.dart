@@ -32,7 +32,7 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     final session = Supabase.instance.client.auth.currentSession;
     return MaterialApp(
-      title: 'BBT Licores',
+      title: 'BBT TIENDA DE LICORES',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.darkTheme,
       home: session != null ? const MainLayout() : const LoginScreen(),
@@ -131,11 +131,11 @@ class _MainLayoutState extends State<MainLayout> {
                   // Logo
                   ClipRRect(
                     borderRadius: BorderRadius.circular(100),
-                    child: Image.asset('assets/logo.jpg',
-                        height: 100, width: 100, fit: BoxFit.cover),
+                    child: Image.asset('lib/assets/logo2.PNG',
+                        height: 200, width: 200, fit: BoxFit.cover),
                   ),
                   const SizedBox(height: 10),
-                  const Text("BBT LICORES",
+                  const Text("BBT TIENDA DE LICORES",
                       style: TextStyle(
                           color: Colors.white,
                           fontWeight: FontWeight.bold,
