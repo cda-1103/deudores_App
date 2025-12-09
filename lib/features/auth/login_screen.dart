@@ -67,14 +67,14 @@ class _LoginScreenState extends State<LoginScreen> {
               children: [
                 // Logo Adaptable
                 Image.asset(
-                  'assets/logo.jpg', // Asegúrate de que la ruta sea correcta (assets/logo.jpg)
+                  'alib/assets/logo2.PNG', // Asegúrate de que la ruta sea correcta (assets/logo.jpg)
                   width: isMobile ? 150 : 200, // Más pequeño en móvil
                   height: isMobile ? 150 : 200,
                 ),
                 const SizedBox(height: 20),
 
                 Text(
-                  "BBT LICORES",
+                  "BBT TIENDA DE LICORES",
                   style: TextStyle(
                       fontSize: isMobile ? 24 : 32, // Texto escala con pantalla
                       fontWeight: FontWeight.bold,
