@@ -12,7 +12,6 @@ import 'features/settings/settings_screen.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // COLOCA TUS CLAVES AQUÍ
   await Supabase.initialize(
     url: 'https://qpkzbwbynpmwujekoavu.supabase.co',
     anonKey: 'sb_publishable_3rhNR4Qx6mcmVLZLUMUe8g_egxGs8oL',
@@ -59,7 +58,6 @@ class _MainLayoutState extends State<MainLayout> {
 
   @override
   Widget build(BuildContext context) {
-    // PUNTO DE QUIEBRE: Menos de 800px es Móvil
     final isMobile = MediaQuery.of(context).size.width < 800;
 
     return Scaffold(
@@ -71,7 +69,7 @@ class _MainLayoutState extends State<MainLayout> {
               backgroundColor: AppTheme.surface,
               selectedItemColor: AppTheme.primary,
               unselectedItemColor: Colors.grey,
-              type: BottomNavigationBarType.fixed, // Para más de 3 items
+              type: BottomNavigationBarType.fixed,
               items: const [
                 BottomNavigationBarItem(
                     icon: Icon(Icons.dashboard), label: 'Dash'),
@@ -85,13 +83,16 @@ class _MainLayoutState extends State<MainLayout> {
             )
           : null,
 
-      // MÓVIL: Botón de Salir en la AppBar (ya que no hay sidebar)
+      // MÓVIL: AppBar sencilla para el título y Logout
       appBar: isMobile
           ? AppBar(
-              title: const Text("BBT LICORES", style: TextStyle(fontSize: 16)),
+              title: const Text("BBT LICORES",
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              backgroundColor: AppTheme.surface,
+              elevation: 0,
               actions: [
                 IconButton(
-                  icon: const Icon(Icons.logout),
+                  icon: const Icon(Icons.logout, color: Colors.grey),
                   onPressed: () async {
                     await Supabase.instance.client.auth.signOut();
                     if (mounted)
@@ -114,12 +115,12 @@ class _MainLayoutState extends State<MainLayout> {
               color: AppTheme.surface,
               child: Column(
                 children: [
-                  const SizedBox(height: 30),
+                  const SizedBox(height: 40),
                   // Logo
                   ClipRRect(
                     borderRadius: BorderRadius.circular(100),
                     child: Image.asset('lib/assets/logo2.PNG',
-                        height: 300, width: 300, fit: BoxFit.cover),
+                        height: 200, width: 200, fit: BoxFit.cover),
                   ),
                   const SizedBox(height: 10),
                   const Text("BBT TIENDA DE LICORES",
@@ -143,7 +144,7 @@ class _MainLayoutState extends State<MainLayout> {
                       icon: Icons.people,
                       label: "Clientes",
                       isActive: _selectedIndex == 2,
-                      onTap: () => setState(() => _selectedTab = 2)),
+                      onTap: () => setState(() => _selectedIndex = 2)),
 
                   const Spacer(),
 
@@ -170,22 +171,28 @@ class _MainLayoutState extends State<MainLayout> {
               ),
             ),
 
-          // CONTENIDO PRINCIPAL
+          // CONTENIDO PRINCIPAL (Con SafeArea)
           Expanded(
             child: Container(
               color: AppTheme.background,
-              padding:
-                  const EdgeInsets.all(16), // Padding reducido para móviles
-              child: _screens[_selectedIndex],
+              child: SafeArea(
+                // <--- ¡AQUÍ ESTÁ LA MAGIA PARA EL IPHONE!
+                bottom:
+                    false, // Dejamos que el sistema maneje el fondo si es necesario, o lo ponemos true si hay overlap
+                child: Padding(
+                  padding: isMobile
+                      ? const EdgeInsets.symmetric(
+                          horizontal: 16.0, vertical: 10.0)
+                      : const EdgeInsets.all(24),
+                  child: _screens[_selectedIndex],
+                ),
+              ),
             ),
           ),
         ],
       ),
     );
   }
-
-  // Helper para arreglar el setState del sidebar item 2 (copié mal arriba)
-  set _selectedTab(int i) => _selectedIndex = i;
 }
 
 class _SidebarItem extends StatelessWidget {

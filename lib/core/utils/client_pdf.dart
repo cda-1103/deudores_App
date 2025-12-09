@@ -15,7 +15,7 @@ class ReportGenerator {
     // 1. Cargar Logo
     pw.MemoryImage? profileImage;
     try {
-      final byteData = await rootBundle.load('assets/logo.jpg');
+      final byteData = await rootBundle.load('lib/assets/logo.jpg');
       profileImage = pw.MemoryImage(byteData.buffer.asUint8List());
     } catch (e) {
       // Ignorar si no hay logo

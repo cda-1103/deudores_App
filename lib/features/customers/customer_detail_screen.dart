@@ -561,7 +561,7 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen>
     final dateStr = DateFormat('dd/MM/yyyy').format(DateTime.now());
 
     final message = """
-Hola ${widget.customerName}, le escribimos de BBT Licores.
+Hola ${widget.customerName}, le escribimos de *BBT TIENDA DE LICORES*.
 
 Fecha: $dateStr
 Tasa: $rateStr Bs/\$

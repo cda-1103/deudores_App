@@ -49,34 +49,35 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final isManual = provider.isManual;
 
     // DETECCIÓN DE PANTALLA
-    final width = MediaQuery.of(context).size.width;
-    final isMobile = width < 800;
+    final isMobile = MediaQuery.of(context).size.width < 800;
 
     return SingleChildScrollView(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text("Dashboard Principal",
-              style: TextStyle(
-                  fontSize: 28,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white)),
-          const SizedBox(height: 30),
+          if (!isMobile) ...[
+            // Título solo en Desktop, en móvil ya está en AppBar
+            const Text("Dashboard Principal",
+                style: TextStyle(
+                    fontSize: 28,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white)),
+            const SizedBox(height: 30),
+          ],
 
           // --- TARJETAS RESPONSIVAS ---
-          // Usamos un Wrap o Column si es móvil para que bajen
           if (isMobile)
             Column(
               children: [
                 _buildRateCard(provider, isManual),
-                const SizedBox(height: 10),
+                const SizedBox(height: 12),
                 _KpiCard(
                     title: "Por Cobrar (USD)",
                     value: "\$ ${_totalDebt.toStringAsFixed(2)}",
                     icon: Icons.account_balance_wallet,
                     color: Colors.orange,
                     isLoading: _isLoadingDebt),
-                const SizedBox(height: 10),
+                const SizedBox(height: 12),
                 _KpiCard(
                     title: "Equivalente (Bs)",
                     value: provider.toBs(_totalDebt),
@@ -108,7 +109,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               ],
             ),
 
-          const SizedBox(height: 40),
+          const SizedBox(height: 30),
           const Text("Actividad Reciente",
               style: TextStyle(
                   fontSize: 20,
@@ -116,12 +117,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   color: Colors.white)),
           const SizedBox(height: 16),
           _buildActivityTable(supabase),
+          const SizedBox(
+              height: 80), // Espacio extra al final para scroll en móvil
         ],
       ),
     );
   }
 
-  // Extraje la tarjeta de Tasa para no repetir código en el if/else
   Widget _buildRateCard(AppStateProvider provider, bool isManual) {
     return _KpiCard(
       title: isManual ? "Tasa Manual" : "Tasa BCV",
@@ -207,14 +209,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
     showModalBottomSheet(
       context: context,
       backgroundColor: AppTheme.surface,
-      isScrollControlled: true, // Para que el teclado no tape el input
+      isScrollControlled: true,
       shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (ctx) => Padding(
-        padding: EdgeInsets.only(
-            bottom: MediaQuery.of(ctx)
-                .viewInsets
-                .bottom), // Padding dinámico teclado
+        padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
         child: Container(
           padding: const EdgeInsets.all(24),
           child: Column(
@@ -294,11 +293,10 @@ class _KpiCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Eliminamos el Expanded aquí porque lo controlamos desde el padre (Row/Column)
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        width: double.infinity, // Ocupa todo el ancho disponible
+        width: double.infinity,
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
             color: AppTheme.surface,
