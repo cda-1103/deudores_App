@@ -59,27 +59,39 @@ class _MainLayoutState extends State<MainLayout> {
   @override
   Widget build(BuildContext context) {
     final isMobile = MediaQuery.of(context).size.width < 800;
+    // Obtenemos la altura del área segura inferior (la barra del iPhone)
+    final bottomPadding = MediaQuery.of(context).padding.bottom;
 
     return Scaffold(
-      // MÓVIL: Barra Inferior
+      // MÓVIL: Barra Inferior con Padding Adicional
       bottomNavigationBar: isMobile
-          ? BottomNavigationBar(
-              currentIndex: _selectedIndex,
-              onTap: (i) => setState(() => _selectedIndex = i),
-              backgroundColor: AppTheme.surface,
-              selectedItemColor: AppTheme.primary,
-              unselectedItemColor: Colors.grey,
-              type: BottomNavigationBarType.fixed,
-              items: const [
-                BottomNavigationBarItem(
-                    icon: Icon(Icons.dashboard), label: 'Dash'),
-                BottomNavigationBarItem(
-                    icon: Icon(Icons.point_of_sale), label: 'Venta'),
-                BottomNavigationBarItem(
-                    icon: Icon(Icons.people), label: 'Clientes'),
-                BottomNavigationBarItem(
-                    icon: Icon(Icons.settings), label: 'Config'),
-              ],
+          ? Container(
+              color: AppTheme.surface, // Color de fondo de la barra
+              child: Padding(
+                // Añadimos padding inferior: el área segura + un extra (ej: 10)
+                padding: EdgeInsets.only(bottom: bottomPadding + 10.0),
+                child: BottomNavigationBar(
+                  currentIndex: _selectedIndex,
+                  onTap: (i) => setState(() => _selectedIndex = i),
+                  backgroundColor: Colors
+                      .transparent, // Transparente para que se vea el contenedor
+                  selectedItemColor: AppTheme.primary,
+                  unselectedItemColor: Colors.grey,
+                  type: BottomNavigationBarType.fixed,
+                  elevation:
+                      0, // Quitamos la sombra del BottomNavigationBar para que se fusione
+                  items: const [
+                    BottomNavigationBarItem(
+                        icon: Icon(Icons.dashboard), label: 'Dash'),
+                    BottomNavigationBarItem(
+                        icon: Icon(Icons.point_of_sale), label: 'Venta'),
+                    BottomNavigationBarItem(
+                        icon: Icon(Icons.people), label: 'Clientes'),
+                    BottomNavigationBarItem(
+                        icon: Icon(Icons.settings), label: 'Config'),
+                  ],
+                ),
+              ),
             )
           : null,
 
@@ -119,11 +131,11 @@ class _MainLayoutState extends State<MainLayout> {
                   // Logo
                   ClipRRect(
                     borderRadius: BorderRadius.circular(100),
-                    child: Image.asset('lib/assets/logo2.PNG',
-                        height: 200, width: 200, fit: BoxFit.cover),
+                    child: Image.asset('assets/logo.jpg',
+                        height: 100, width: 100, fit: BoxFit.cover),
                   ),
                   const SizedBox(height: 10),
-                  const Text("BBT TIENDA DE LICORES",
+                  const Text("BBT LICORES",
                       style: TextStyle(
                           color: Colors.white,
                           fontWeight: FontWeight.bold,
@@ -176,9 +188,7 @@ class _MainLayoutState extends State<MainLayout> {
             child: Container(
               color: AppTheme.background,
               child: SafeArea(
-                // <--- ¡AQUÍ ESTÁ LA MAGIA PARA EL IPHONE!
-                bottom:
-                    false, // Dejamos que el sistema maneje el fondo si es necesario, o lo ponemos true si hay overlap
+                bottom: false, // Ya lo manejamos en el BottomNavigationBar
                 child: Padding(
                   padding: isMobile
                       ? const EdgeInsets.symmetric(
