@@ -300,11 +300,20 @@ class _PaymentsScreenState extends State<PaymentsScreen> {
                         },
                       ),
                       Padding(
-                        padding: const EdgeInsets.only(top: 8.0, left: 5),
-                        child: Text("≈ $_bsEquivalent",
-                            style: const TextStyle(
-                                color: Colors.greenAccent,
-                                fontWeight: FontWeight.bold)),
+                        padding: const EdgeInsets.only(top: 5.0, left: 5),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text("Equivalente: $_bsEquivalent",
+                                style: const TextStyle(
+                                    color: AppTheme.accentGreen,
+                                    fontWeight: FontWeight.bold)),
+                            Text(
+                                "Tasa: Bs. ${provider.activeRate.toStringAsFixed(2)}",
+                                style: const TextStyle(
+                                    color: Colors.white54, fontSize: 11)),
+                          ],
+                        ),
                       )
                     ],
                   ),

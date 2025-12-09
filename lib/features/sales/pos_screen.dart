@@ -12,371 +12,275 @@ class PosScreen extends StatefulWidget {
 }
 
 class _PosScreenState extends State<PosScreen> {
-  // --- ESTADO ---
+  // Estado del Carrito y Venta
   final List<Map<String, dynamic>> _cart = [];
   final TextEditingController _priceCtrl = TextEditingController();
   final SalesService _salesService = SalesService();
 
-  TextEditingController? _searchController; // Referencia para limpiar input
+  // Controladores auxiliares
+  TextEditingController? _searchController;
   DateTime _selectedDate = DateTime.now();
   String _selectedProductName = "";
   int? _selectedProductId;
 
-  // --- UI PRINCIPAL ---
   @override
   Widget build(BuildContext context) {
-    // Cálculo de totales
-    double total =
-        _cart.fold(0, (sum, item) => sum + (item['price'] * item['qty']));
+    // Calculamos el total sumando (precio * cantidad) de cada item
+    double total = _cart.fold(
+      0,
+      (sum, item) => sum + (item['price'] * item['qty']),
+    );
+
     final dateStr = DateFormat('dd/MM/yyyy').format(_selectedDate);
+    final isMobile = MediaQuery.of(context).size.width < 800;
 
-    // Punto de quiebre para responsive
-    final isMobile = MediaQuery.of(context).size.width < 900;
-
-    // Si es móvil, usamos un layout vertical optimizado
-    if (isMobile) {
-      return _buildMobileLayout(total, dateStr);
-    }
-
-    // Si es escritorio, usamos el layout de dos columnas
-    return _buildDesktopLayout(total, dateStr);
-  }
-
-  // --- LAYOUT MÓVIL (Vertical) ---
-  Widget _buildMobileLayout(double total, String dateStr) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        // 1. Cabecera de Inputs (Fija arriba)
-        Card(
-          margin: const EdgeInsets.fromLTRB(0, 0, 0, 10),
-          child: Padding(
-            padding: const EdgeInsets.all(12.0),
-            child: _buildInputRow(),
-          ),
-        ),
-
-        // 2. Lista de Items (Ocupa todo el espacio disponible)
-        Expanded(
-          child: _cart.isEmpty
-              ? Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.shopping_cart_outlined,
-                          size: 60, color: Colors.white.withOpacity(0.2)),
-                      const SizedBox(height: 10),
-                      const Text("Carrito vacío",
-                          style: TextStyle(color: Colors.grey)),
-                    ],
-                  ),
-                )
-              : ListView.separated(
-                  itemCount: _cart.length,
-                  separatorBuilder: (_, __) =>
-                      const Divider(height: 1, color: Colors.white10),
-                  itemBuilder: (ctx, i) => _buildCartItem(_cart[i], i),
+    // --- SECCIÓN 1: CARRITO DE COMPRAS ---
+    Widget cartSection = Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Fila de Inputs (Buscador + Precio + Botón)
+            Row(
+              crossAxisAlignment:
+                  CrossAxisAlignment.center, // ALINEACIÓN CENTRAL PERFECTA
+              children: [
+                // 1. BUSCADOR
+                Expanded(
+                  flex: 3,
+                  child: _buildProductAutocomplete(),
                 ),
-        ),
+                const SizedBox(width: 12),
 
-        // 3. Panel de Totales y Acción (Fijo abajo)
-        Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-              color: AppTheme.surface,
-              borderRadius:
-                  const BorderRadius.vertical(top: Radius.circular(20)),
-              boxShadow: [
-                BoxShadow(
-                    color: Colors.black.withOpacity(0.2),
-                    blurRadius: 10,
-                    offset: const Offset(0, -5))
-              ]),
-          child: Column(
-            mainAxisSize: MainAxisSize.min, // Se ajusta al contenido
-            children: [
-              // Fila de Fecha y Total
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  InkWell(
-                    onTap: _pickDate,
-                    child: Row(
-                      children: [
-                        const Icon(Icons.calendar_today,
-                            size: 16, color: Colors.grey),
-                        const SizedBox(width: 5),
-                        Text(dateStr,
-                            style: const TextStyle(color: Colors.white)),
-                      ],
+                // 2. PRECIO
+                Expanded(
+                  flex: 1,
+                  child: TextField(
+                    controller: _priceCtrl,
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                    style: const TextStyle(color: Colors.white),
+                    decoration: const InputDecoration(
+                      labelText: "Precio",
+                      prefixText: "\$ ",
+                      isDense: true,
+                      border: OutlineInputBorder(),
+                      enabledBorder: OutlineInputBorder(
+                          borderSide: BorderSide(color: Colors.grey)),
+                      // Padding específico para igualar altura visualmente con el botón
+                      contentPadding:
+                          EdgeInsets.symmetric(vertical: 18, horizontal: 12),
                     ),
                   ),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      const Text("TOTAL",
-                          style: TextStyle(fontSize: 10, color: Colors.grey)),
-                      Text("\$${total.toStringAsFixed(2)}",
-                          style: const TextStyle(
-                              fontSize: 24,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white)),
-                    ],
-                  )
-                ],
+                ),
+                const SizedBox(width: 12),
+
+                // 3. BOTÓN AGREGAR (Sin Padding manual, centrado por el Row)
+                SizedBox(
+                  height:
+                      56, // Altura que coincide con los Inputs Material estándar
+                  width: 56,
+                  child: ElevatedButton(
+                    onPressed: _addToCart,
+                    style: ElevatedButton.styleFrom(
+                        padding: EdgeInsets.zero,
+                        backgroundColor: AppTheme.primary,
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(4))),
+                    child: const Icon(Icons.add, color: Colors.white),
+                  ),
+                )
+              ],
+            ),
+            const SizedBox(height: 20),
+
+            const Text(
+              "Carrito Actual",
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
               ),
-              const SizedBox(height: 15),
-              // Botón de Cobrar Grande
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed:
-                      _cart.isEmpty ? null : () => _showCheckoutDialog(total),
-                  style: ElevatedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      backgroundColor: AppTheme.primary,
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12))),
-                  child: const Text("COBRAR",
-                      style:
-                          TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            ),
+            const Divider(color: Colors.white10),
+
+            // Lista visual de items
+            isMobile && _cart.isEmpty
+                ? const SizedBox(
+                    height: 50,
+                    child: Center(
+                      child: Text(
+                        "Carrito vacío",
+                        style: TextStyle(color: Colors.grey),
+                      ),
+                    ),
+                  )
+                : Expanded(
+                    flex: isMobile ? 0 : 1,
+                    child: SizedBox(
+                      height: isMobile ? 200 : null,
+                      child: ListView.separated(
+                        itemCount: _cart.length,
+                        separatorBuilder: (_, __) =>
+                            const Divider(color: Colors.white10),
+                        itemBuilder: (ctx, i) {
+                          return _CartItemTile(
+                            key: ValueKey(_cart[i]),
+                            item: _cart[i],
+                            onDelete: () => setState(() => _cart.removeAt(i)),
+                            onUpdate: () => setState(() {}),
+                          );
+                        },
+                      ),
+                    ),
+                  ),
+          ],
+        ),
+      ),
+    );
+
+    // --- SECCIÓN 2: RESUMEN Y ACCIONES ---
+    Widget summarySection = Card(
+      child: Padding(
+        padding: const EdgeInsets.all(20.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            InkWell(
+              onTap: _pickDate,
+              child: Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  border: Border.all(color: Colors.white24),
+                  borderRadius: BorderRadius.circular(8),
+                  color: Colors.white.withOpacity(0.05),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          "Fecha Registro",
+                          style: TextStyle(color: Colors.grey, fontSize: 12),
+                        ),
+                        Text(
+                          dateStr,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        )
+                      ],
+                    ),
+                    const Icon(Icons.calendar_today, color: AppTheme.primary),
+                  ],
                 ),
               ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
+            ),
+            const SizedBox(height: 20),
+            const Divider(height: 30, color: Colors.white10),
 
-  // --- LAYOUT ESCRITORIO (Dos Columnas) ---
-  Widget _buildDesktopLayout(double total, String dateStr) {
+            // Total Calculado
+            _SummaryRow(
+              label: "Total a Pagar",
+              value: "\$${total.toStringAsFixed(2)}",
+              isTotal: true,
+            ),
+            const Spacer(),
+
+            // Botón Cobrar
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed:
+                    _cart.isEmpty ? null : () => _showCheckoutDialog(total),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppTheme.primary,
+                  padding: const EdgeInsets.symmetric(vertical: 20),
+                ),
+                child: const Text("COBRAR / DIVIDIR"),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    // LAYOUT PRINCIPAL
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text("Módulo de Ventas",
+        if (!isMobile) ...[
+          const Text(
+            "Módulo de Ventas",
             style: TextStyle(
-                fontSize: 28,
-                fontWeight: FontWeight.bold,
-                color: Colors.white)),
-        const SizedBox(height: 20),
-        Expanded(
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // COLUMNA IZQUIERDA: Carrito
-              Expanded(
-                flex: 2,
-                child: Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(20.0),
-                    child: Column(
-                      children: [
-                        _buildInputRow(),
-                        const SizedBox(height: 20),
-                        const Divider(color: Colors.white10),
-                        Expanded(
-                          child: _cart.isEmpty
-                              ? const Center(
-                                  child: Text("Agrega productos para comenzar",
-                                      style: TextStyle(color: Colors.grey)))
-                              : ListView.separated(
-                                  itemCount: _cart.length,
-                                  separatorBuilder: (_, __) =>
-                                      const Divider(color: Colors.white10),
-                                  itemBuilder: (ctx, i) =>
-                                      _buildCartItem(_cart[i], i),
-                                ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 20),
-
-              // COLUMNA DERECHA: Resumen
-              Expanded(
-                flex: 1,
-                child: Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(24.0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text("Detalles",
-                            style: TextStyle(
-                                fontSize: 20,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.white)),
-                        const SizedBox(height: 20),
-                        // Selector Fecha
-                        InkWell(
-                          onTap: _pickDate,
-                          child: Container(
-                            padding: const EdgeInsets.all(12),
-                            decoration: BoxDecoration(
-                                border: Border.all(color: Colors.white24),
-                                borderRadius: BorderRadius.circular(8)),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                const Text("Fecha Venta",
-                                    style: TextStyle(color: Colors.grey)),
-                                Text(dateStr,
-                                    style: const TextStyle(
-                                        color: Colors.white,
-                                        fontWeight: FontWeight.bold)),
-                              ],
-                            ),
-                          ),
-                        ),
-                        const Spacer(),
-                        const Divider(color: Colors.white10),
-                        const SizedBox(height: 10),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            const Text("Total a Pagar",
-                                style: TextStyle(
-                                    color: Colors.grey, fontSize: 16)),
-                            Text("\$${total.toStringAsFixed(2)}",
-                                style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 32,
-                                    fontWeight: FontWeight.bold)),
-                          ],
-                        ),
-                        const SizedBox(height: 20),
-                        SizedBox(
-                          width: double.infinity,
-                          child: ElevatedButton(
-                            onPressed: _cart.isEmpty
-                                ? null
-                                : () => _showCheckoutDialog(total),
-                            style: ElevatedButton.styleFrom(
-                                padding:
-                                    const EdgeInsets.symmetric(vertical: 20),
-                                backgroundColor: AppTheme.primary),
-                            child: const Text("PROCESAR PAGO"),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  // --- WIDGETS REUTILIZABLES ---
-
-  // Fila de inputs (Buscador + Precio + Botón)
-  Widget _buildInputRow() {
-    return Row(
-      children: [
-        Expanded(
-          flex: 3,
-          child: _buildProductAutocomplete(),
-        ),
-        const SizedBox(width: 10),
-        SizedBox(
-          width: 90,
-          child: TextField(
-            controller: _priceCtrl,
-            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            style: const TextStyle(color: Colors.white),
-            decoration: const InputDecoration(
-              labelText: "Precio",
-              prefixText: "\$",
-              isDense: true, // Hace el input más compacto
-              contentPadding:
-                  EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+              fontSize: 28,
+              fontWeight: FontWeight.bold,
+              color: Colors.white,
             ),
           ),
+          const SizedBox(height: 20),
+        ],
+        Expanded(
+          child: isMobile
+              ? SingleChildScrollView(
+                  child: Column(
+                    children: [
+                      SizedBox(height: 400, child: cartSection),
+                      const SizedBox(height: 10),
+                      SizedBox(height: 250, child: summarySection),
+                      const SizedBox(height: 80),
+                    ],
+                  ),
+                )
+              : Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(flex: 2, child: cartSection),
+                    const SizedBox(width: 20),
+                    Expanded(flex: 1, child: summarySection)
+                  ],
+                ),
         ),
-        const SizedBox(width: 10),
-        IconButton.filled(
-          onPressed: _addToCart,
-          style: IconButton.styleFrom(
-              backgroundColor: AppTheme.primary,
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8))),
-          icon: const Icon(Icons.add, color: Colors.white),
-        )
       ],
     );
   }
 
-  // Item individual del carrito
-  Widget _buildCartItem(Map<String, dynamic> item, int index) {
-    final isFreeItem = item['productId'] == null;
-    return ListTile(
-      contentPadding: EdgeInsets.zero,
-      leading: Container(
-        padding: const EdgeInsets.all(8),
-        decoration: BoxDecoration(
-            color: isFreeItem
-                ? Colors.orange.withOpacity(0.1)
-                : Colors.blue.withOpacity(0.1),
-            borderRadius: BorderRadius.circular(8)),
-        child: Icon(isFreeItem ? Icons.edit_note : Icons.liquor,
-            color: isFreeItem ? Colors.orange : Colors.blue),
-      ),
-      title: Text(item['name'],
-          style: const TextStyle(
-              color: Colors.white, fontWeight: FontWeight.w500)),
-      subtitle: Text("\$${item['price']}",
-          style: const TextStyle(color: Colors.grey)),
-      trailing: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          _CircleButton(
-              icon: Icons.remove,
-              onTap: () {
-                if (item['qty'] > 1) setState(() => item['qty']--);
-              }),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12.0),
-            child: Text("${item['qty']}",
-                style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16)),
-          ),
-          _CircleButton(
-              icon: Icons.add, onTap: () => setState(() => item['qty']++)),
-          const SizedBox(width: 15),
-          Text("\$${(item['price'] * item['qty']).toStringAsFixed(2)}",
-              style: const TextStyle(
-                  color: Colors.white, fontWeight: FontWeight.bold)),
-          const SizedBox(width: 10),
-          IconButton(
-            icon: const Icon(Icons.delete, color: AppTheme.accentRed, size: 20),
-            onPressed: () => setState(() => _cart.removeAt(index)),
-          ),
-        ],
-      ),
-    );
-  }
+  // --- FUNCIONES AUXILIARES ---
 
-  // --- LÓGICA DE NEGOCIO ---
+  Future<void> _pickDate() async {
+    final pickedDate = await showDatePicker(
+      context: context,
+      initialDate: _selectedDate,
+      firstDate: DateTime(2020),
+      lastDate: DateTime.now(),
+      builder: (context, child) {
+        return Theme(data: AppTheme.darkTheme, child: child!);
+      },
+    );
+
+    if (pickedDate != null) {
+      setState(() => _selectedDate = pickedDate);
+    }
+  }
 
   Widget _buildProductAutocomplete() {
     return Autocomplete<Map<String, dynamic>>(
       displayStringForOption: (option) => option['name'],
-      optionsBuilder: (textEditingValue) async {
-        if (textEditingValue.text.isEmpty)
+      optionsBuilder: (TextEditingValue textEditingValue) async {
+        if (textEditingValue.text.isEmpty) {
           return const Iterable<Map<String, dynamic>>.empty();
+        }
+
         final response = await Supabase.instance.client
             .from('products')
             .select('id, name, price')
             .ilike('name', '%${textEditingValue.text}%')
             .limit(5);
+
         return List<Map<String, dynamic>>.from(response);
       },
       onSelected: (selection) {
@@ -395,9 +299,13 @@ class _PosScreenState extends State<PosScreen> {
             _selectedProductId = null;
           },
           decoration: const InputDecoration(
-            labelText: "Buscar Producto o libre",
+            labelText: "Buscar o Libre",
             prefixIcon: Icon(Icons.search, color: Colors.grey),
-            isDense: true,
+            border: OutlineInputBorder(),
+            enabledBorder:
+                OutlineInputBorder(borderSide: BorderSide(color: Colors.grey)),
+            // Aseguramos padding vertical para que coincida con el precio
+            contentPadding: EdgeInsets.symmetric(vertical: 18, horizontal: 12),
           ),
         );
       },
@@ -416,10 +324,14 @@ class _PosScreenState extends State<PosScreen> {
                 itemBuilder: (context, index) {
                   final option = options.elementAt(index);
                   return ListTile(
-                    title: Text(option['name'],
-                        style: const TextStyle(color: Colors.white)),
-                    subtitle: Text("\$${option['price']}",
-                        style: const TextStyle(color: AppTheme.accentGreen)),
+                    title: Text(
+                      option['name'],
+                      style: const TextStyle(color: Colors.white),
+                    ),
+                    subtitle: Text(
+                      "\$${option['price']}",
+                      style: const TextStyle(color: AppTheme.accentGreen),
+                    ),
                     onTap: () => onSelected(option),
                   );
                 },
@@ -433,6 +345,7 @@ class _PosScreenState extends State<PosScreen> {
 
   void _addToCart() {
     if (_selectedProductName.isEmpty || _priceCtrl.text.isEmpty) return;
+
     setState(() {
       _cart.add({
         'name': _selectedProductName,
@@ -440,6 +353,7 @@ class _PosScreenState extends State<PosScreen> {
         'qty': 1,
         'productId': _selectedProductId
       });
+
       _priceCtrl.clear();
       _searchController?.clear();
       _selectedProductName = "";
@@ -447,23 +361,9 @@ class _PosScreenState extends State<PosScreen> {
     });
   }
 
-  Future<void> _pickDate() async {
-    final picked = await showDatePicker(
-        context: context,
-        initialDate: _selectedDate,
-        firstDate: DateTime(2020),
-        lastDate: DateTime.now(),
-        builder: (c, child) => Theme(data: AppTheme.darkTheme, child: child!));
-    if (picked != null) setState(() => _selectedDate = picked);
-  }
-
-  // --- DIÁLOGO DE COBRO (COMPLETO) ---
   void _showCheckoutDialog(double totalAmount) async {
-    // Carga inicial de clientes
-    final initialCustomers =
+    final customers =
         await Supabase.instance.client.from('customers').select().order('name');
-    final List<Map<String, dynamic>> allCustomers =
-        List<Map<String, dynamic>>.from(initialCustomers);
 
     final List<String> selectedIds = [];
     Map<String, double> customAmounts = {};
@@ -477,59 +377,69 @@ class _PosScreenState extends State<PosScreen> {
       builder: (context) {
         return StatefulBuilder(
           builder: (context, setDialogState) {
-            // Filtrar clientes
-            final filteredCustomers = allCustomers
+            final filteredCustomers = List<Map<String, dynamic>>.from(customers)
                 .where((c) => c['name']
                     .toString()
                     .toLowerCase()
                     .contains(searchQuery.toLowerCase()))
                 .toList();
 
-            // Lógica de validación
             double assignedTotal = isCustomSplit
                 ? customAmounts.values.fold(0, (sum, val) => sum + val)
                 : 0;
+
             final equalShare =
                 selectedIds.isEmpty ? 0 : totalAmount / selectedIds.length;
+
             bool isValid = selectedIds.isNotEmpty &&
                 (!isCustomSplit || (assignedTotal - totalAmount).abs() < 0.05);
 
             return AlertDialog(
               backgroundColor: AppTheme.surface,
-              title: const Text("Procesar Venta",
-                  style: TextStyle(color: Colors.white)),
+              title: const Text(
+                "Procesar Venta",
+                style: TextStyle(color: Colors.white),
+              ),
               content: SizedBox(
-                width: 500, // Ancho fijo para que no se deforme
+                width: 500,
                 height: 600,
                 child: Column(
                   children: [
                     // Header con Switch
                     Container(
-                      padding: const EdgeInsets.all(12),
+                      padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
-                          color: AppTheme.background,
-                          borderRadius: BorderRadius.circular(8)),
+                        color: AppTheme.background,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              const Text("TOTAL",
-                                  style: TextStyle(
-                                      fontSize: 10, color: Colors.grey)),
-                              Text("\$${totalAmount.toStringAsFixed(2)}",
-                                  style: const TextStyle(
-                                      fontSize: 20,
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.bold)),
+                              const Text(
+                                "TOTAL",
+                                style:
+                                    TextStyle(color: Colors.grey, fontSize: 10),
+                              ),
+                              Text(
+                                "\$${totalAmount.toStringAsFixed(2)}",
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 24,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
                             ],
                           ),
                           Row(
                             children: [
-                              const Text("Equitativo",
-                                  style: TextStyle(
-                                      fontSize: 12, color: Colors.grey)),
+                              const Text(
+                                "Equitativo",
+                                style:
+                                    TextStyle(color: Colors.grey, fontSize: 12),
+                              ),
                               Switch(
                                 value: isCustomSplit,
                                 activeColor: AppTheme.primary,
@@ -538,15 +448,17 @@ class _PosScreenState extends State<PosScreen> {
                                   customAmounts.clear();
                                 }),
                               ),
-                              const Text("Manual",
-                                  style: TextStyle(
-                                      fontSize: 12, color: Colors.grey)),
+                              const Text(
+                                "Manual",
+                                style:
+                                    TextStyle(color: Colors.grey, fontSize: 12),
+                              ),
                             ],
                           )
                         ],
                       ),
                     ),
-                    const SizedBox(height: 10),
+                    const SizedBox(height: 15),
 
                     // Buscador
                     TextField(
@@ -554,15 +466,13 @@ class _PosScreenState extends State<PosScreen> {
                       decoration: const InputDecoration(
                         hintText: "Buscar cliente...",
                         prefixIcon: Icon(Icons.search, color: Colors.grey),
-                        contentPadding:
-                            EdgeInsets.symmetric(vertical: 0, horizontal: 10),
                       ),
                       onChanged: (val) =>
                           setDialogState(() => searchQuery = val),
                     ),
                     const SizedBox(height: 10),
 
-                    // Lista de Selección
+                    // Lista de Clientes
                     Expanded(
                       child: ListView.builder(
                         itemCount: filteredCustomers.length,
@@ -571,14 +481,14 @@ class _PosScreenState extends State<PosScreen> {
                           final isSelected = selectedIds.contains(c['id']);
 
                           return Container(
-                            margin: const EdgeInsets.only(bottom: 4),
+                            margin: const EdgeInsets.only(bottom: 5),
                             decoration: BoxDecoration(
-                                color: isSelected
-                                    ? AppTheme.primary.withOpacity(0.1)
-                                    : null,
-                                borderRadius: BorderRadius.circular(6)),
+                              color: isSelected
+                                  ? AppTheme.primary.withOpacity(0.1)
+                                  : null,
+                              borderRadius: BorderRadius.circular(8),
+                            ),
                             child: ListTile(
-                              visualDensity: VisualDensity.compact,
                               leading: Checkbox(
                                 value: isSelected,
                                 activeColor: AppTheme.primary,
@@ -593,34 +503,33 @@ class _PosScreenState extends State<PosScreen> {
                                   });
                                 },
                               ),
-                              title: Text(c['name'],
-                                  style: const TextStyle(
-                                      color: Colors.white, fontSize: 14)),
+                              title: Text(
+                                c['name'],
+                                style: const TextStyle(color: Colors.white),
+                              ),
                               trailing: (isSelected && isCustomSplit)
                                   ? SizedBox(
-                                      width: 70,
+                                      width: 80,
                                       child: TextFormField(
                                         initialValue: customAmounts[c['id']]
                                                 ?.toString() ??
                                             "",
                                         keyboardType: TextInputType.number,
                                         style: const TextStyle(
-                                            color: Colors.white,
-                                            fontWeight: FontWeight.bold),
-                                        decoration: const InputDecoration(
-                                            hintText: "0.00",
-                                            isDense: true,
-                                            contentPadding: EdgeInsets.all(8)),
-                                        onChanged: (val) => setDialogState(() =>
-                                            customAmounts[c['id']] =
-                                                double.tryParse(val) ?? 0),
+                                            color: Colors.white),
+                                        onChanged: (val) {
+                                          setDialogState(() =>
+                                              customAmounts[c['id']] =
+                                                  double.tryParse(val) ?? 0);
+                                        },
                                       ),
                                     )
                                   : isSelected
                                       ? Text(
                                           "\$${equalShare.toStringAsFixed(2)}",
                                           style: const TextStyle(
-                                              color: AppTheme.accentGreen))
+                                              color: AppTheme.accentGreen),
+                                        )
                                       : null,
                             ),
                           );
@@ -646,14 +555,14 @@ class _PosScreenState extends State<PosScreen> {
               ),
               actions: [
                 TextButton(
-                    onPressed: () => Navigator.pop(context),
-                    child: const Text("Cancelar",
-                        style: TextStyle(color: Colors.grey))),
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text("Cancelar"),
+                ),
                 ElevatedButton(
                   onPressed: isValid
                       ? () async {
                           Navigator.pop(context);
-                          // Preparamos el split
+
                           Map<String, double> finalSplit = {};
                           if (isCustomSplit) {
                             finalSplit = customAmounts;
@@ -661,30 +570,29 @@ class _PosScreenState extends State<PosScreen> {
                             double perPerson = double.parse(
                                 (totalAmount / selectedIds.length)
                                     .toStringAsFixed(2));
-                            for (var id in selectedIds)
+                            for (var id in selectedIds) {
                               finalSplit[id] = perPerson;
+                            }
                           }
 
-                          try {
-                            await _salesService.processSaleWithCustomSplit(
-                                splitData: finalSplit,
-                                items: _cart,
-                                totalAmount: totalAmount,
-                                note: "Venta POS",
-                                customDate: _selectedDate);
+                          await _salesService.processSaleWithCustomSplit(
+                            splitData: finalSplit,
+                            items: _cart,
+                            totalAmount: totalAmount,
+                            note: "Venta POS",
+                            customDate: _selectedDate,
+                          );
 
-                            if (mounted) {
-                              setState(() {
-                                _cart.clear();
-                                _selectedDate = DateTime.now();
-                              });
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                      content: Text("Venta Registrada!")));
-                            }
-                          } catch (e) {
+                          if (mounted) {
+                            setState(() {
+                              _cart.clear();
+                              _selectedDate = DateTime.now();
+                            });
                             ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(content: Text("Error: $e")));
+                              const SnackBar(
+                                content: Text("Venta Registrada!"),
+                              ),
+                            );
                           }
                         }
                       : null,
@@ -699,21 +607,185 @@ class _PosScreenState extends State<PosScreen> {
   }
 }
 
-// Botón circular pequeño para + / -
-class _CircleButton extends StatelessWidget {
-  final IconData icon;
-  final VoidCallback onTap;
-  const _CircleButton({required this.icon, required this.onTap});
+// --- WIDGET DE ITEM DE CARRITO (CORREGIDO: CANTIDAD EDITABLE + BOTONES) ---
+class _CartItemTile extends StatefulWidget {
+  final Map<String, dynamic> item;
+  final VoidCallback onDelete;
+  final VoidCallback onUpdate;
+
+  const _CartItemTile({
+    super.key, // Añadida key para rendimiento
+    required this.item,
+    required this.onDelete,
+    required this.onUpdate,
+  });
+
+  @override
+  State<_CartItemTile> createState() => _CartItemTileState();
+}
+
+class _CartItemTileState extends State<_CartItemTile> {
+  late TextEditingController _qtyCtrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _qtyCtrl = TextEditingController(text: widget.item['qty'].toString());
+  }
+
+  @override
+  void didUpdateWidget(covariant _CartItemTile oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.item['qty'] != widget.item['qty']) {
+      // Usamos una posición de cursor segura para evitar saltos al escribir
+      final currentPos = _qtyCtrl.selection.base.offset;
+      _qtyCtrl.text = widget.item['qty'].toString();
+      // Intentamos mantener la posición del cursor si es posible
+      if (currentPos != -1 && currentPos <= _qtyCtrl.text.length) {
+        _qtyCtrl.selection =
+            TextSelection.fromPosition(TextPosition(offset: currentPos));
+      }
+    }
+  }
+
+  // Actualización manual (teclado)
+  void _updateQty(String val) {
+    int? newQty = int.tryParse(val);
+    if (newQty != null && newQty > 0) {
+      widget.item['qty'] = newQty;
+      widget.onUpdate(); // Notifica al padre
+    }
+  }
+
+  // Actualización botones (+ / -)
+  void _changeQtyBy(int delta) {
+    int current = widget.item['qty'];
+    int newVal = current + delta;
+    if (newVal > 0) {
+      setState(() {
+        widget.item['qty'] = newVal;
+        _qtyCtrl.text =
+            newVal.toString(); // Forzamos actualización visual del input
+      });
+      widget.onUpdate(); // Notifica al padre
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.all(4),
-        decoration: BoxDecoration(
-            shape: BoxShape.circle, border: Border.all(color: Colors.grey)),
-        child: Icon(icon, size: 14, color: Colors.white),
+    final isFreeItem = widget.item['productId'] == null;
+    return ListTile(
+      contentPadding: EdgeInsets.zero,
+      leading: Icon(
+        isFreeItem ? Icons.edit_note : Icons.liquor,
+        color: isFreeItem ? Colors.orange : Colors.blue,
       ),
+      title: Text(
+        widget.item['name'],
+        style: const TextStyle(color: Colors.white),
+      ),
+      subtitle: Text(
+        "\$${widget.item['price']}",
+        style: const TextStyle(color: Colors.grey, fontSize: 12),
+      ),
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          IconButton(
+            icon: const Icon(
+              Icons.remove_circle_outline,
+              color: Colors.grey,
+              size: 20,
+            ),
+            onPressed: () => _changeQtyBy(-1),
+          ),
+
+          // CAMPO DE TEXTO PARA CANTIDAD
+          SizedBox(
+            width: 40,
+            child: TextField(
+              controller: _qtyCtrl,
+              keyboardType: TextInputType.number,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+              ),
+              decoration: const InputDecoration(
+                isDense: true,
+                border: InputBorder.none,
+                contentPadding: EdgeInsets.zero,
+              ),
+              onChanged: _updateQty,
+            ),
+          ),
+
+          IconButton(
+            icon: const Icon(
+              Icons.add_circle_outline,
+              color: Colors.grey,
+              size: 20,
+            ),
+            onPressed: () => _changeQtyBy(1),
+          ),
+
+          const SizedBox(width: 10),
+          Text(
+            "\$${(widget.item['price'] * widget.item['qty']).toStringAsFixed(2)}",
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+
+          IconButton(
+            icon: const Icon(
+              Icons.delete,
+              color: AppTheme.accentRed,
+              size: 20,
+            ),
+            onPressed: widget.onDelete,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// Widget auxiliar para las filas del resumen
+class _SummaryRow extends StatelessWidget {
+  final String label;
+  final String value;
+  final bool isTotal;
+
+  const _SummaryRow({
+    required this.label,
+    required this.value,
+    this.isTotal = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+            color: isTotal ? Colors.white : Colors.grey,
+            fontSize: isTotal ? 18 : 14,
+            fontWeight: isTotal ? FontWeight.bold : FontWeight.normal,
+          ),
+        ),
+        Text(
+          value,
+          style: TextStyle(
+            color: isTotal ? Colors.white : Colors.white,
+            fontSize: isTotal ? 24 : 14,
+            fontWeight: isTotal ? FontWeight.bold : FontWeight.normal,
+          ),
+        )
+      ],
     );
   }
 }
