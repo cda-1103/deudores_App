@@ -67,7 +67,7 @@ class _LoginScreenState extends State<LoginScreen> {
               children: [
                 // Logo Adaptable
                 Image.asset(
-                  'alib/assets/logo2.PNG', // Asegúrate de que la ruta sea correcta (assets/logo.jpg)
+                  'lib/assets/logo2.PNG', // Asegúrate de que la ruta sea correcta (assets/logo.jpg)
                   width: isMobile ? 150 : 200, // Más pequeño en móvil
                   height: isMobile ? 150 : 200,
                 ),

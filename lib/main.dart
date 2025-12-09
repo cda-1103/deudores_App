@@ -98,7 +98,7 @@ class _MainLayoutState extends State<MainLayout> {
       // MÓVIL: AppBar sencilla para el título y Logout
       appBar: isMobile
           ? AppBar(
-              title: const Text("BBT LICORES",
+              title: const Text("BBT TIENDA DE LICORES",
                   style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
               backgroundColor: AppTheme.surface,
               elevation: 0,
