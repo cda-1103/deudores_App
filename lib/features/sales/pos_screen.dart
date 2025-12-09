@@ -77,7 +77,7 @@ class _PosScreenState extends State<PosScreen> {
                 ),
                 const SizedBox(width: 12),
 
-                // 3. BOTÓN AGREGAR (Sin Padding manual, centrado por el Row)
+                // 3. BOTÓN AGREGAR
                 SizedBox(
                   height:
                       56, // Altura que coincide con los Inputs Material estándar
@@ -580,7 +580,9 @@ class _PosScreenState extends State<PosScreen> {
                             items: _cart,
                             totalAmount: totalAmount,
                             note: "Venta POS",
-                            customDate: _selectedDate,
+                            // --- AQUÍ ESTÁ EL CAMBIO CLAVE ---
+                            customDate:
+                                _selectedDate.toUtc(), // Enviamos en UTC
                           );
 
                           if (mounted) {
@@ -607,14 +609,14 @@ class _PosScreenState extends State<PosScreen> {
   }
 }
 
-// --- WIDGET DE ITEM DE CARRITO (CORREGIDO: CANTIDAD EDITABLE + BOTONES) ---
+// --- WIDGET DE ITEM DE CARRITO (Con Cantidad Editable) ---
 class _CartItemTile extends StatefulWidget {
   final Map<String, dynamic> item;
   final VoidCallback onDelete;
   final VoidCallback onUpdate;
 
   const _CartItemTile({
-    super.key, // Añadida key para rendimiento
+    super.key,
     required this.item,
     required this.onDelete,
     required this.onUpdate,
@@ -637,10 +639,8 @@ class _CartItemTileState extends State<_CartItemTile> {
   void didUpdateWidget(covariant _CartItemTile oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.item['qty'] != widget.item['qty']) {
-      // Usamos una posición de cursor segura para evitar saltos al escribir
       final currentPos = _qtyCtrl.selection.base.offset;
       _qtyCtrl.text = widget.item['qty'].toString();
-      // Intentamos mantener la posición del cursor si es posible
       if (currentPos != -1 && currentPos <= _qtyCtrl.text.length) {
         _qtyCtrl.selection =
             TextSelection.fromPosition(TextPosition(offset: currentPos));
@@ -648,26 +648,23 @@ class _CartItemTileState extends State<_CartItemTile> {
     }
   }
 
-  // Actualización manual (teclado)
   void _updateQty(String val) {
     int? newQty = int.tryParse(val);
     if (newQty != null && newQty > 0) {
       widget.item['qty'] = newQty;
-      widget.onUpdate(); // Notifica al padre
+      widget.onUpdate();
     }
   }
 
-  // Actualización botones (+ / -)
   void _changeQtyBy(int delta) {
     int current = widget.item['qty'];
     int newVal = current + delta;
     if (newVal > 0) {
       setState(() {
         widget.item['qty'] = newVal;
-        _qtyCtrl.text =
-            newVal.toString(); // Forzamos actualización visual del input
+        _qtyCtrl.text = newVal.toString();
       });
-      widget.onUpdate(); // Notifica al padre
+      widget.onUpdate();
     }
   }
 
@@ -699,8 +696,6 @@ class _CartItemTileState extends State<_CartItemTile> {
             ),
             onPressed: () => _changeQtyBy(-1),
           ),
-
-          // CAMPO DE TEXTO PARA CANTIDAD
           SizedBox(
             width: 40,
             child: TextField(
@@ -719,7 +714,6 @@ class _CartItemTileState extends State<_CartItemTile> {
               onChanged: _updateQty,
             ),
           ),
-
           IconButton(
             icon: const Icon(
               Icons.add_circle_outline,
@@ -728,7 +722,6 @@ class _CartItemTileState extends State<_CartItemTile> {
             ),
             onPressed: () => _changeQtyBy(1),
           ),
-
           const SizedBox(width: 10),
           Text(
             "\$${(widget.item['price'] * widget.item['qty']).toStringAsFixed(2)}",
@@ -737,7 +730,6 @@ class _CartItemTileState extends State<_CartItemTile> {
               fontWeight: FontWeight.bold,
             ),
           ),
-
           IconButton(
             icon: const Icon(
               Icons.delete,
@@ -752,7 +744,6 @@ class _CartItemTileState extends State<_CartItemTile> {
   }
 }
 
-// Widget auxiliar para las filas del resumen
 class _SummaryRow extends StatelessWidget {
   final String label;
   final String value;
