@@ -52,70 +52,7 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen>
     super.dispose();
   }
 
-  // --- NUEVO: EDITAR DATOS DEL CLIENTE ---
-  Future<void> _editCustomerData(Map<String, dynamic> currentData) async {
-    final nameCtrl = TextEditingController(text: currentData['name']);
-    final phoneCtrl = TextEditingController(text: currentData['phone'] ?? '');
-
-    await showDialog(
-        context: context,
-        builder: (ctx) => AlertDialog(
-              backgroundColor: AppTheme.surface,
-              title: const Text("Editar Cliente",
-                  style: TextStyle(color: Colors.white)),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  TextField(
-                    controller: nameCtrl,
-                    style: const TextStyle(color: Colors.white),
-                    decoration: const InputDecoration(
-                        labelText: "Nombre",
-                        prefixIcon: Icon(Icons.person, color: Colors.grey)),
-                  ),
-                  const SizedBox(height: 15),
-                  TextField(
-                    controller: phoneCtrl,
-                    keyboardType: TextInputType.phone,
-                    style: const TextStyle(color: Colors.white),
-                    decoration: const InputDecoration(
-                        labelText: "Teléfono",
-                        prefixIcon: Icon(Icons.phone, color: Colors.grey)),
-                  ),
-                ],
-              ),
-              actions: [
-                TextButton(
-                    onPressed: () => Navigator.pop(ctx),
-                    child: const Text("Cancelar",
-                        style: TextStyle(color: Colors.grey))),
-                ElevatedButton(
-                    onPressed: () async {
-                      if (nameCtrl.text.trim().isEmpty) return;
-
-                      try {
-                        await _supabase.from('customers').update({
-                          'name': nameCtrl.text.trim(),
-                          'phone': phoneCtrl.text.trim(),
-                        }).eq('id', widget.customerId);
-
-                        if (mounted) {
-                          Navigator.pop(ctx);
-                          ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                  content: Text(
-                                      "Datos actualizados correctamente")));
-                        }
-                      } catch (e) {
-                        ScaffoldMessenger.of(context)
-                            .showSnackBar(SnackBar(content: Text("Error: $e")));
-                      }
-                    },
-                    child: const Text("Guardar"))
-              ],
-            ));
-  }
-
+  // --- GENERAR REPORTE PDF ---
   Future<void> _exportToPdf(double currentBalance) async {
     showDialog(
         context: context,
@@ -140,7 +77,6 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen>
           return;
         }
 
-        // Buscamos el nombre más reciente (por si se acaba de editar)
         final customerNow = await _supabase
             .from('customers')
             .select('name')
@@ -164,6 +100,7 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen>
     }
   }
 
+  // --- BORRAR CLIENTE ---
   Future<void> _deleteThisCustomer() async {
     final passwordCtrl = TextEditingController();
     bool? authorized = await showDialog<bool>(
@@ -223,8 +160,7 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen>
           IconButton(
             icon: const Icon(Icons.picture_as_pdf, color: Colors.white),
             tooltip: "Exportar Historial PDF",
-            onPressed: () => _exportToPdf(widget
-                .initialBalance), // Usamos el balance inicial temporalmente, pero se recalculá en el método
+            onPressed: () => _exportToPdf(widget.initialBalance),
           ),
           const SizedBox(width: 10),
         ],
@@ -233,10 +169,7 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen>
         stream: _customerStream,
         builder: (context, snapshot) {
           final customerData = snapshot.data;
-
-          // Usamos el nombre del stream si está disponible (para ver cambios en vivo)
           final displayName = customerData?['name'] ?? widget.customerName;
-
           final currentBalance =
               (customerData != null && customerData.isNotEmpty)
                   ? (customerData['current_balance'] as num).toDouble()
@@ -266,7 +199,6 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen>
                             child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                              // FILA DE NOMBRE + BOTÓN EDITAR
                               Row(
                                 children: [
                                   Flexible(
@@ -301,10 +233,7 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen>
                                   const Icon(Icons.phone,
                                       size: 16, color: Colors.grey),
                                   const SizedBox(width: 5),
-                                  Text(
-                                      phone != null && phone.isNotEmpty
-                                          ? phone
-                                          : "Sin teléfono",
+                                  Text(phone ?? "Sin teléfono",
                                       style:
                                           const TextStyle(color: Colors.grey)),
                                 ],
@@ -354,10 +283,7 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen>
                           const SizedBox(height: 10),
                           OutlinedButton.icon(
                               onPressed: () => _launchWhatsApp(
-                                  phone,
-                                  currentBalance,
-                                  provider,
-                                  displayName), // Pasamos el nombre actual
+                                  phone, currentBalance, provider, displayName),
                               icon: const Icon(Icons.message, size: 18),
                               label: const Text("WhatsApp"),
                               style: OutlinedButton.styleFrom(
@@ -381,9 +307,6 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen>
                                     AppTheme.accentRed.withOpacity(0.1),
                                 padding:
                                     const EdgeInsets.symmetric(vertical: 12)))),
-                    Builder(builder: (c) {
-                      return const SizedBox.shrink();
-                    }),
                   ],
                 ),
               ),
@@ -544,11 +467,18 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen>
     }
   }
 
+  // --- REGISTRAR ABONO MEJORADO ---
   void _showPaymentDialog(BuildContext context, double currentBalance) {
     final amountCtrl = TextEditingController();
     String? selectedMethod;
     final paymentMethodsFuture =
         _supabase.from('payment_methods').select().order('name');
+    final provider = Provider.of<AppStateProvider>(context,
+        listen: false); // Acceso al provider
+
+    // Variables de estado del diálogo
+    DateTime selectedDate = DateTime.now();
+    String bsEquivalent = "Bs. 0.00";
 
     showDialog(
       context: context,
@@ -564,17 +494,46 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen>
               children: [
                 Text("Deuda actual: \$${currentBalance.toStringAsFixed(2)}",
                     style: const TextStyle(color: Colors.grey)),
-                const SizedBox(height: 20),
+                const SizedBox(height: 15),
+
+                // 1. Selector de Fecha
+                InkWell(
+                  onTap: () async {
+                    final picked = await showDatePicker(
+                        context: context,
+                        initialDate: selectedDate,
+                        firstDate: DateTime(2020),
+                        lastDate: DateTime.now(),
+                        builder: (c, child) =>
+                            Theme(data: AppTheme.darkTheme, child: child!));
+                    if (picked != null)
+                      setDialogState(() => selectedDate = picked);
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                        border: Border.all(color: Colors.white24),
+                        borderRadius: BorderRadius.circular(4),
+                        color: Colors.black26),
+                    child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                              "Fecha: ${DateFormat('dd/MM/yyyy').format(selectedDate)}",
+                              style: const TextStyle(color: Colors.white)),
+                          const Icon(Icons.calendar_today,
+                              size: 16, color: AppTheme.primary)
+                        ]),
+                  ),
+                ),
+                const SizedBox(height: 15),
+
+                // 2. Método de Pago
                 FutureBuilder<List<Map<String, dynamic>>>(
                   future: paymentMethodsFuture,
                   builder: (context, snapshot) {
                     if (!snapshot.hasData)
-                      return const Center(
-                          child: SizedBox(
-                              height: 20,
-                              width: 20,
-                              child: CircularProgressIndicator(
-                                  strokeWidth: 2, color: Colors.white)));
+                      return const LinearProgressIndicator();
                     final methods = snapshot.data!;
                     if (selectedMethod == null && methods.isNotEmpty)
                       selectedMethod = methods.first['name'];
@@ -597,7 +556,10 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen>
                     );
                   },
                 ),
+
                 const SizedBox(height: 15),
+
+                // 3. Monto y Conversión
                 TextField(
                   controller: amountCtrl,
                   keyboardType:
@@ -608,6 +570,21 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen>
                       prefixIcon: Icon(Icons.attach_money, color: Colors.green),
                       filled: true,
                       fillColor: Colors.black26),
+                  onChanged: (val) {
+                    final amount = double.tryParse(val) ?? 0;
+                    setDialogState(() {
+                      bsEquivalent = provider.toBs(amount);
+                    });
+                  },
+                ),
+                const SizedBox(height: 5),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: Text("Equivalente: $bsEquivalent",
+                      style: const TextStyle(
+                          color: AppTheme.accentGreen,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 13)),
                 ),
               ],
             ),
@@ -630,9 +607,11 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen>
                       'amount': amount,
                       'description': 'Abono ($selectedMethod)',
                       'payment_method': selectedMethod,
+                      'created_at': selectedDate
+                          .toIso8601String(), // Guardamos fecha seleccionada
                     });
 
-                    _refreshCustomerData(); // Refrescar UI
+                    _refreshCustomerData();
                     if (mounted) Navigator.pop(ctx);
                   } catch (e) {
                     ScaffoldMessenger.of(context)
@@ -646,6 +625,64 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen>
         ),
       ),
     );
+  }
+
+  Future<void> _editCustomerData(Map<String, dynamic> currentData) async {
+    final nameCtrl = TextEditingController(text: currentData['name']);
+    final phoneCtrl = TextEditingController(text: currentData['phone'] ?? '');
+
+    await showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+              backgroundColor: AppTheme.surface,
+              title: const Text("Editar Cliente",
+                  style: TextStyle(color: Colors.white)),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(
+                      controller: nameCtrl,
+                      style: const TextStyle(color: Colors.white),
+                      decoration: const InputDecoration(
+                          labelText: "Nombre",
+                          prefixIcon: Icon(Icons.person, color: Colors.grey))),
+                  const SizedBox(height: 15),
+                  TextField(
+                      controller: phoneCtrl,
+                      keyboardType: TextInputType.phone,
+                      style: const TextStyle(color: Colors.white),
+                      decoration: const InputDecoration(
+                          labelText: "Teléfono",
+                          prefixIcon: Icon(Icons.phone, color: Colors.grey))),
+                ],
+              ),
+              actions: [
+                TextButton(
+                    onPressed: () => Navigator.pop(ctx),
+                    child: const Text("Cancelar",
+                        style: TextStyle(color: Colors.grey))),
+                ElevatedButton(
+                    onPressed: () async {
+                      if (nameCtrl.text.trim().isEmpty) return;
+                      try {
+                        await _supabase.from('customers').update({
+                          'name': nameCtrl.text.trim(),
+                          'phone': phoneCtrl.text.trim()
+                        }).eq('id', widget.customerId);
+                        if (mounted) {
+                          Navigator.pop(ctx);
+                          ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                  content: Text("Datos actualizados")));
+                        }
+                      } catch (e) {
+                        ScaffoldMessenger.of(context)
+                            .showSnackBar(SnackBar(content: Text("Error: $e")));
+                      }
+                    },
+                    child: const Text("Guardar"))
+              ],
+            ));
   }
 
   void _launchWhatsApp(String? phone, double amount, AppStateProvider provider,
@@ -665,7 +702,7 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen>
     final dateStr = DateFormat('dd/MM/yyyy').format(DateTime.now());
 
     final message = """
-Hola $currentName, le escribimos de *BBT TIENDA DE LICORES*.
+Hola $currentName, le escribimos de BBT Licores.
 
 Fecha: $dateStr
 Tasa: $rateStr Bs/\$
