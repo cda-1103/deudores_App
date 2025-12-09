@@ -34,7 +34,7 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     final session = Supabase.instance.client.auth.currentSession;
     return MaterialApp(
-      title: 'BBT Licores',
+      title: 'BBT TIENDA DE LICORES',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.darkTheme,
       home: session != null ? const MainLayout() : const LoginScreen(),
@@ -104,7 +104,7 @@ class _MainLayoutState extends State<MainLayout> {
       // MÓVIL: AppBar sencilla para el título y Logout
       appBar: isMobile
           ? AppBar(
-              title: const Text("BBT LICORES",
+              title: const Text("BBT TIENDA DE LICORES",
                   style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
               backgroundColor: AppTheme.surface,
               elevation: 0,

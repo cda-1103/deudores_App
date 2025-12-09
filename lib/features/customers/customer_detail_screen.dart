@@ -66,7 +66,8 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen>
         child: _EditSaleSheet(
           saleId: saleId,
           customerId: widget.customerId,
-          onSave: _refreshCustomerData, // Al guardar, refrescamos el saldo
+          onSave:
+              _refreshCustomerData, // Al guardar, refrescamos el saldo y la lista
         ),
       ),
     );
@@ -376,7 +377,8 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen>
                       'description':
                           'Abono ($selectedMethod)${noteCtrl.text.isNotEmpty ? ' - ${noteCtrl.text}' : ''}',
                       'payment_method': selectedMethod,
-                      'created_at': selectedDate.toIso8601String()
+                      // GUARDAMOS LA FECHA EN UTC PARA EVITAR ERRORES DE ZONA HORARIA
+                      'created_at': selectedDate.toUtc().toIso8601String()
                     });
                     _refreshCustomerData();
                     if (mounted) Navigator.pop(ctx);
@@ -777,7 +779,8 @@ class _EditPaymentSheetState extends State<_EditPaymentSheet> {
         'amount': double.parse(_amountCtrl.text),
         'description': _noteCtrl.text,
         'payment_method': _method,
-        'created_at': _date.toIso8601String()
+        // GUARDAMOS EN UTC PARA EVITAR ERROR DE FECHA
+        'created_at': _date.toUtc().toIso8601String()
       }).eq('id', widget.movement['id']);
 
       if (mounted) {
@@ -900,6 +903,7 @@ class _EditSaleSheetState extends State<_EditSaleSheet> {
   bool _isLoading = true;
   final TextEditingController _addItemPriceCtrl = TextEditingController();
   String _addItemName = "";
+  int? _correlativeId; // Para preservar el ID original
 
   @override
   void initState() {
@@ -923,6 +927,7 @@ class _EditSaleSheetState extends State<_EditSaleSheet> {
           _noteCtrl.text = sale['note'] ?? '';
           _saleDate = DateTime.parse(sale['created_at']).toLocal();
           _items = List<Map<String, dynamic>>.from(items);
+          _correlativeId = sale['correlative_id']; // Guardamos el ID original
           _isLoading = false;
         });
       }
@@ -970,17 +975,23 @@ class _EditSaleSheetState extends State<_EditSaleSheet> {
     setState(() => _isLoading = true);
     double newTotal =
         _items.fold(0, (sum, item) => sum + (item['total'] as num));
+
+    // Generar nuevo resumen manteniendo el formato original
     String itemsSummary =
         _items.map((i) => "${i['quantity']}x ${i['item_name']}").join(", ");
     if (itemsSummary.length > 100)
       itemsSummary = "${itemsSummary.substring(0, 97)}...";
+
+    String prefix = _correlativeId != null ? 'Venta #$_correlativeId' : 'Venta';
+    String finalDescription = '$prefix: $itemsSummary';
 
     try {
       // 1. Actualizar venta
       await _supabase.from('sales').update({
         'total_amount': newTotal,
         'note': _noteCtrl.text,
-        'created_at': _saleDate.toIso8601String()
+        // GUARDAMOS EN UTC
+        'created_at': _saleDate.toUtc().toIso8601String()
       }).eq('id', widget.saleId);
 
       // 2. Reemplazar items
@@ -999,8 +1010,9 @@ class _EditSaleSheetState extends State<_EditSaleSheet> {
       // 3. Actualizar deuda del cliente (Movement)
       await _supabase.from('movements').update({
         'amount': newTotal,
-        'description': 'Venta Modificada: $itemsSummary',
-        'created_at': _saleDate.toIso8601String()
+        'description': finalDescription, // Usamos la descripción limpia
+        // GUARDAMOS EN UTC TAMBIÉN
+        'created_at': _saleDate.toUtc().toIso8601String()
       }).match({'sale_id': widget.saleId, 'customer_id': widget.customerId});
 
       if (mounted) {
@@ -1091,14 +1103,13 @@ class _EditSaleSheetState extends State<_EditSaleSheet> {
                     final qtyCtrl = TextEditingController(
                         text: item['quantity'].toString());
                     return ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      title: Text(item['item_name'],
-                          style: const TextStyle(color: Colors.white)),
-                      subtitle: Text("\$${item['unit_price']}",
-                          style: const TextStyle(color: Colors.green)),
-                      trailing: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
+                        contentPadding: EdgeInsets.zero,
+                        title: Text(item['item_name'],
+                            style: const TextStyle(color: Colors.white)),
+                        subtitle: Text("\$${item['unit_price']}",
+                            style: const TextStyle(color: Colors.green)),
+                        trailing:
+                            Row(mainAxisSize: MainAxisSize.min, children: [
                           IconButton(
                               icon: const Icon(Icons.remove,
                                   color: Colors.grey, size: 18),
@@ -1124,10 +1135,8 @@ class _EditSaleSheetState extends State<_EditSaleSheet> {
                           IconButton(
                               icon: const Icon(Icons.delete,
                                   color: AppTheme.accentRed, size: 20),
-                              onPressed: () => _removeItem(i)),
-                        ],
-                      ),
-                    );
+                              onPressed: () => _removeItem(i))
+                        ]));
                   })),
 
           // Agregar Item (Autocompletar)
