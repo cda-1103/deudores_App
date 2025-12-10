@@ -3,7 +3,8 @@ import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../providers/app_state_provider.dart';
 import '../../config/themes.dart';
-import 'customer_detail_screen.dart'; // Importamos la nueva pantalla
+import 'customer_detail_screen.dart';
+import '../../core/utils/formatters.dart'; // <--- IMPORTANTE
 
 class CustomersScreen extends StatefulWidget {
   const CustomersScreen({super.key});
@@ -13,7 +14,6 @@ class CustomersScreen extends StatefulWidget {
 }
 
 class _CustomersScreenState extends State<CustomersScreen> {
-  // Controlador para el buscador
   final TextEditingController _searchCtrl = TextEditingController();
   String _searchQuery = "";
 
@@ -23,6 +23,84 @@ class _CustomersScreenState extends State<CustomersScreen> {
     super.dispose();
   }
 
+  // --- LÓGICA DE ELIMINACIÓN SEGURA ---
+  Future<void> _deleteCustomer(String customerId, String customerName) async {
+    final passwordCtrl = TextEditingController();
+
+    bool? authorized = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppTheme.surface,
+        title: const Text("Eliminar Cliente",
+            style: TextStyle(color: AppTheme.accentRed)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+                "Estás a punto de eliminar a '$customerName' y todo su historial. Esta acción es irreversible.",
+                style: const TextStyle(color: Colors.grey)),
+            const SizedBox(height: 20),
+            const Text("Contraseña de Supervisor:",
+                style: TextStyle(color: Colors.white, fontSize: 12)),
+            TextField(
+              controller: passwordCtrl,
+              obscureText: true,
+              keyboardType: TextInputType.number,
+              style: const TextStyle(color: Colors.white),
+              decoration: const InputDecoration(
+                hintText: "******",
+                prefixIcon: Icon(Icons.lock, color: Colors.grey),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child:
+                  const Text("Cancelar", style: TextStyle(color: Colors.grey))),
+          ElevatedButton(
+            style:
+                ElevatedButton.styleFrom(backgroundColor: AppTheme.accentRed),
+            onPressed: () {
+              if (passwordCtrl.text == '102030') {
+                Navigator.pop(ctx, true);
+              } else {
+                ScaffoldMessenger.of(ctx).showSnackBar(const SnackBar(
+                    content: Text("Contraseña incorrecta"),
+                    backgroundColor: Colors.red));
+              }
+            },
+            child: const Text("ELIMINAR"),
+          )
+        ],
+      ),
+    );
+
+    if (authorized == true) {
+      try {
+        await Supabase.instance.client
+            .from('movements')
+            .delete()
+            .eq('customer_id', customerId);
+        await Supabase.instance.client
+            .from('customers')
+            .delete()
+            .eq('id', customerId);
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text("Cliente eliminado correctamente")));
+        }
+      } catch (e) {
+        if (mounted)
+          ScaffoldMessenger.of(context)
+              .showSnackBar(SnackBar(content: Text("Error: $e")));
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final supabase = Supabase.instance.client;
@@ -30,80 +108,69 @@ class _CustomersScreenState extends State<CustomersScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // --- HEADER ---
+        // HEADER
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            const Text(
-              "Gestión de Clientes",
-              style: TextStyle(
-                  fontSize: 28,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white),
-            ),
+            const Text("Gestión de Clientes",
+                style: TextStyle(
+                    fontSize: 28,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white)),
             ElevatedButton.icon(
               onPressed: () => _showAddCustomerDialog(context),
               icon: const Icon(Icons.add, color: Colors.white),
               label: const Text("Agregar Cliente",
                   style: TextStyle(color: Colors.white)),
               style: ElevatedButton.styleFrom(
-                backgroundColor: AppTheme.primary,
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
-              ),
+                  backgroundColor: AppTheme.primary,
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 20, vertical: 15)),
             ),
           ],
         ),
         const SizedBox(height: 20),
 
-        // --- BARRA DE BÚSQUEDA ---
+        // BUSCADOR
         TextField(
           controller: _searchCtrl,
-          // Actualizamos el estado cuando el texto cambia
           onChanged: (val) => setState(() => _searchQuery = val.toLowerCase()),
           style: const TextStyle(color: Colors.white),
           decoration: InputDecoration(
             hintText: "Buscar cliente por nombre...",
             hintStyle: TextStyle(color: Colors.grey.shade500),
             prefixIcon: const Icon(Icons.search, color: Colors.grey),
-            // Botón para limpiar búsqueda
             suffixIcon: _searchQuery.isNotEmpty
                 ? IconButton(
                     icon: const Icon(Icons.clear, color: Colors.grey),
                     onPressed: () {
                       _searchCtrl.clear();
                       setState(() => _searchQuery = "");
-                    },
-                  )
+                    })
                 : null,
             filled: true,
             fillColor: AppTheme.surface,
             border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(10),
-              borderSide: BorderSide.none,
-            ),
+                borderRadius: BorderRadius.circular(10),
+                borderSide: BorderSide.none),
           ),
         ),
         const SizedBox(height: 20),
 
-        // --- LISTA DE CLIENTES ---
+        // LISTA
         Expanded(
           child: StreamBuilder<List<Map<String, dynamic>>>(
             stream: supabase.from('customers').stream(
                 primaryKey: ['id']).order('current_balance', ascending: false),
             builder: (context, snapshot) {
-              if (snapshot.hasError) {
+              if (snapshot.hasError)
                 return Center(
                     child: Text("Error: ${snapshot.error}",
                         style: const TextStyle(color: Colors.red)));
-              }
-              if (!snapshot.hasData) {
+              if (!snapshot.hasData)
                 return const Center(child: CircularProgressIndicator());
-              }
 
               final customers = snapshot.data!;
-
-              // FILTRADO EN TIEMPO REAL
               final filteredCustomers = customers.where((c) {
                 final name = c['name'].toString().toLowerCase();
                 final phone = c['phone']?.toString().toLowerCase() ?? '';
@@ -113,21 +180,18 @@ class _CustomersScreenState extends State<CustomersScreen> {
 
               if (filteredCustomers.isEmpty) {
                 return Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
+                    child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
                       Icon(Icons.search_off,
                           size: 60, color: Colors.grey.shade700),
                       const SizedBox(height: 10),
                       Text(
-                        _searchQuery.isEmpty
-                            ? "No hay clientes registrados"
-                            : "No se encontraron resultados para '$_searchQuery'",
-                        style: const TextStyle(color: Colors.grey),
-                      ),
-                    ],
-                  ),
-                );
+                          _searchQuery.isEmpty
+                              ? "No hay clientes registrados"
+                              : "No se encontraron resultados",
+                          style: const TextStyle(color: Colors.grey))
+                    ]));
               }
 
               return Card(
@@ -140,6 +204,7 @@ class _CustomersScreenState extends State<CustomersScreen> {
                     final customer = filteredCustomers[index];
                     final balance =
                         (customer['current_balance'] as num).toDouble();
+                    final canDelete = balance.abs() < 0.01;
 
                     return ListTile(
                       contentPadding: const EdgeInsets.symmetric(
@@ -171,41 +236,50 @@ class _CustomersScreenState extends State<CustomersScreen> {
                             mainAxisAlignment: MainAxisAlignment.center,
                             crossAxisAlignment: CrossAxisAlignment.end,
                             children: [
+                              // SALDO EN DÓLARES (Con Coma)
                               Text(
-                                "\$${balance.toStringAsFixed(2)}",
+                                "\$ ${AppFormatters.money(balance)}",
                                 style: TextStyle(
-                                  color: balance > 0
-                                      ? AppTheme.accentRed
-                                      : AppTheme.accentGreen,
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 16,
-                                ),
+                                    color: balance > 0
+                                        ? AppTheme.accentRed
+                                        : AppTheme.accentGreen,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 16),
                               ),
+                              // SALDO EN BS (CALCULADO AQUÍ PARA TENER COMA)
                               Consumer<AppStateProvider>(
-                                builder: (_, provider, __) => Text(
-                                  provider.toBs(balance),
-                                  style: const TextStyle(
-                                      fontSize: 12, color: Colors.grey),
-                                ),
-                              ),
+                                  builder: (_, provider, __) {
+                                // Calculamos y formateamos manualmente para asegurar el estilo europeo
+                                final bsAmount = AppFormatters.money(
+                                    balance * provider.activeRate);
+                                return Text("Bs. $bsAmount",
+                                    style: const TextStyle(
+                                        fontSize: 12, color: Colors.grey));
+                              }),
                             ],
                           ),
-                          const SizedBox(width: 10),
+                          const SizedBox(width: 15),
+                          if (canDelete)
+                            IconButton(
+                              icon: const Icon(Icons.delete_outline,
+                                  color: Colors.grey),
+                              tooltip: "Eliminar Cliente (Saldo 0)",
+                              onPressed: () => _deleteCustomer(
+                                  customer['id'], customer['name']),
+                            )
+                          else
+                            const SizedBox(width: 48),
                           const Icon(Icons.chevron_right, color: Colors.grey),
                         ],
                       ),
                       onTap: () {
-                        // NAVEGACIÓN AL PERFIL
                         Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => CustomerDetailScreen(
-                              customerId: customer['id'],
-                              customerName: customer['name'],
-                              initialBalance: balance,
-                            ),
-                          ),
-                        );
+                            context,
+                            MaterialPageRoute(
+                                builder: (_) => CustomerDetailScreen(
+                                    customerId: customer['id'],
+                                    customerName: customer['name'],
+                                    initialBalance: balance)));
                       },
                     );
                   },
@@ -236,32 +310,27 @@ class _CustomersScreenState extends State<CustomersScreen> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   TextField(
-                    controller: nameCtrl,
-                    style: const TextStyle(color: Colors.white),
-                    decoration: const InputDecoration(
-                      labelText: "Nombre Completo *",
-                      prefixIcon: Icon(Icons.person, color: Colors.grey),
-                    ),
-                  ),
+                      controller: nameCtrl,
+                      style: const TextStyle(color: Colors.white),
+                      decoration: const InputDecoration(
+                          labelText: "Nombre Completo *",
+                          prefixIcon: Icon(Icons.person, color: Colors.grey))),
                   const SizedBox(height: 15),
                   TextField(
-                    controller: phoneCtrl,
-                    keyboardType: TextInputType.phone,
-                    style: const TextStyle(color: Colors.white),
-                    decoration: const InputDecoration(
-                      labelText: "Teléfono (Opcional)",
-                      prefixIcon: Icon(Icons.phone, color: Colors.grey),
-                      hintText: "Ej: 0414...",
-                    ),
-                  ),
+                      controller: phoneCtrl,
+                      keyboardType: TextInputType.phone,
+                      style: const TextStyle(color: Colors.white),
+                      decoration: const InputDecoration(
+                          labelText: "Teléfono (Opcional)",
+                          prefixIcon: Icon(Icons.phone, color: Colors.grey),
+                          hintText: "Ej: 0414...")),
                 ],
               ),
               actions: [
                 TextButton(
-                  onPressed: () => Navigator.pop(ctx),
-                  child: const Text("Cancelar",
-                      style: TextStyle(color: Colors.grey)),
-                ),
+                    onPressed: () => Navigator.pop(ctx),
+                    child: const Text("Cancelar",
+                        style: TextStyle(color: Colors.grey))),
                 ElevatedButton(
                   onPressed: isLoading
                       ? null
@@ -274,22 +343,19 @@ class _CustomersScreenState extends State<CustomersScreen> {
                                 .insert({
                               'name': nameCtrl.text.trim(),
                               'phone': phoneCtrl.text.trim(),
-                              'current_balance': 0,
+                              'current_balance': 0
                             });
                             if (context.mounted) {
                               Navigator.pop(ctx);
                               ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text(
-                                      "Cliente '${nameCtrl.text}' creado con éxito"),
-                                  backgroundColor: AppTheme.accentGreen,
-                                ),
-                              );
+                                  SnackBar(
+                                      content: Text(
+                                          "Cliente '${nameCtrl.text}' creado"),
+                                      backgroundColor: AppTheme.accentGreen));
                             }
                           } catch (e) {
                             ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text("Error: $e")),
-                            );
+                                SnackBar(content: Text("Error: $e")));
                           } finally {
                             if (context.mounted)
                               setState(() => isLoading = false);

@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../../config/themes.dart';
 import '../../providers/app_state_provider.dart';
+import '../../core/utils/formatters.dart'; // <--- CLAVE PARA EL FORMATO
 
 class PaymentsScreen extends StatefulWidget {
   const PaymentsScreen({super.key});
@@ -23,7 +24,7 @@ class _PaymentsScreenState extends State<PaymentsScreen> {
   Map<String, dynamic>? _selectedCustomer;
   String? _selectedMethod;
   DateTime _selectedDate = DateTime.now();
-  String _bsEquivalent = "Bs. 0.00";
+  String _bsEquivalent = "Bs. 0,00";
   bool _isLoading = false;
 
   // Carga inicial de métodos
@@ -46,8 +47,10 @@ class _PaymentsScreenState extends State<PaymentsScreen> {
       return;
     }
 
-    final amount = double.tryParse(_amountCtrl.text);
-    if (amount == null || amount <= 0) {
+    // PARSEO INTELIGENTE DE COMAS
+    final amount = AppFormatters.stringToDouble(_amountCtrl.text);
+
+    if (amount <= 0) {
       ScaffoldMessenger.of(context)
           .showSnackBar(const SnackBar(content: Text("Monto inválido")));
       return;
@@ -63,7 +66,8 @@ class _PaymentsScreenState extends State<PaymentsScreen> {
         'description':
             'Abono ($_selectedMethod) ${_noteCtrl.text.isNotEmpty ? "- ${_noteCtrl.text}" : ""}',
         'payment_method': _selectedMethod,
-        'created_at': _selectedDate.toIso8601String(),
+        // IMPORTANTE: ENVIAR FECHA UTC
+        'created_at': _selectedDate.toUtc().toIso8601String(),
       });
 
       if (mounted) {
@@ -87,7 +91,7 @@ class _PaymentsScreenState extends State<PaymentsScreen> {
       _amountCtrl.clear();
       _noteCtrl.clear();
       _selectedDate = DateTime.now();
-      _bsEquivalent = "Bs. 0.00";
+      _bsEquivalent = "Bs. 0,00";
       // No limpiamos el método para agilizar pagos repetitivos
     });
   }
@@ -196,7 +200,8 @@ class _PaymentsScreenState extends State<PaymentsScreen> {
                           return ListTile(
                             title: Text(opt['name'],
                                 style: const TextStyle(color: Colors.white)),
-                            subtitle: Text("Deuda: \$${opt['current_balance']}",
+                            subtitle: Text(
+                                "Deuda: \$${AppFormatters.money(opt['current_balance'])}", // Formato Europeo
                                 style: TextStyle(
                                     color: (opt['current_balance'] > 0)
                                         ? Colors.redAccent
@@ -235,7 +240,8 @@ class _PaymentsScreenState extends State<PaymentsScreen> {
                     const SizedBox(height: 5),
                     const Text("Saldo Actual Pendiente",
                         style: TextStyle(color: Colors.grey)),
-                    Text("\$${_selectedCustomer!['current_balance']}",
+                    Text(
+                        "\$${AppFormatters.money(_selectedCustomer!['current_balance'])}", // Formato Europeo
                         style: const TextStyle(
                             color: Colors.redAccent,
                             fontSize: 24,
@@ -295,7 +301,8 @@ class _PaymentsScreenState extends State<PaymentsScreen> {
                           border: OutlineInputBorder(),
                         ),
                         onChanged: (val) {
-                          final amount = double.tryParse(val) ?? 0;
+                          // PARSEO INTELIGENTE
+                          final amount = AppFormatters.stringToDouble(val);
                           setState(() => _bsEquivalent = provider.toBs(amount));
                         },
                       ),
@@ -306,10 +313,10 @@ class _PaymentsScreenState extends State<PaymentsScreen> {
                           children: [
                             Text("Equivalente: $_bsEquivalent",
                                 style: const TextStyle(
-                                    color: AppTheme.accentGreen,
+                                    color: Colors.greenAccent,
                                     fontWeight: FontWeight.bold)),
                             Text(
-                                "Tasa: Bs. ${provider.activeRate.toStringAsFixed(2)}",
+                                "Tasa: Bs. ${AppFormatters.money(provider.activeRate)}",
                                 style: const TextStyle(
                                     color: Colors.white54, fontSize: 11)),
                           ],

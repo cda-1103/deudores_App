@@ -3,6 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
 import '../../config/themes.dart';
 import '../../data/services/sales_service.dart';
+import '../../core/utils/formatters.dart';
 
 class PosScreen extends StatefulWidget {
   const PosScreen({super.key});
@@ -25,14 +26,14 @@ class _PosScreenState extends State<PosScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // Calculamos el total sumando (precio * cantidad) de cada item
+    // CORRECCIÓN 1: Usamos 0.0 para asegurar que sea double
     double total = _cart.fold(
-      0,
+      0.0,
       (sum, item) => sum + (item['price'] * item['qty']),
     );
 
     final dateStr = DateFormat('dd/MM/yyyy').format(_selectedDate);
-    final isMobile = MediaQuery.of(context).size.width < 800;
+    final isMobile = MediaQuery.of(context).size.width < 900;
 
     // --- SECCIÓN 1: CARRITO DE COMPRAS ---
     Widget cartSection = Card(
@@ -41,26 +42,18 @@ class _PosScreenState extends State<PosScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Fila de Inputs (Buscador + Precio + Botón)
+            // Fila de Inputs (Buscador + Precio + Botón) alineados al centro
             Row(
-              crossAxisAlignment:
-                  CrossAxisAlignment.center, // ALINEACIÓN CENTRAL PERFECTA
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // 1. BUSCADOR
-                Expanded(
-                  flex: 3,
-                  child: _buildProductAutocomplete(),
-                ),
+                Expanded(flex: 3, child: _buildProductAutocomplete()),
                 const SizedBox(width: 12),
-
-                // 2. PRECIO
                 Expanded(
                   flex: 1,
                   child: TextField(
                     controller: _priceCtrl,
-                    keyboardType: const TextInputType.numberWithOptions(
-                      decimal: true,
-                    ),
+                    keyboardType:
+                        const TextInputType.numberWithOptions(decimal: true),
                     style: const TextStyle(color: Colors.white),
                     decoration: const InputDecoration(
                       labelText: "Precio",
@@ -69,18 +62,15 @@ class _PosScreenState extends State<PosScreen> {
                       border: OutlineInputBorder(),
                       enabledBorder: OutlineInputBorder(
                           borderSide: BorderSide(color: Colors.grey)),
-                      // Padding específico para igualar altura visualmente con el botón
+                      // Padding específico para igualar altura visualmente
                       contentPadding:
                           EdgeInsets.symmetric(vertical: 18, horizontal: 12),
                     ),
                   ),
                 ),
                 const SizedBox(width: 12),
-
-                // 3. BOTÓN AGREGAR
                 SizedBox(
-                  height:
-                      56, // Altura que coincide con los Inputs Material estándar
+                  height: 56, // Altura fija igual a los inputs Material
                   width: 56,
                   child: ElevatedButton(
                     onPressed: _addToCart,
@@ -95,14 +85,9 @@ class _PosScreenState extends State<PosScreen> {
               ],
             ),
             const SizedBox(height: 20),
-
-            const Text(
-              "Carrito Actual",
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                color: Colors.white,
-              ),
-            ),
+            const Text("Carrito Actual",
+                style: TextStyle(
+                    fontWeight: FontWeight.bold, color: Colors.white)),
             const Divider(color: Colors.white10),
 
             // Lista visual de items
@@ -110,26 +95,24 @@ class _PosScreenState extends State<PosScreen> {
                 ? const SizedBox(
                     height: 50,
                     child: Center(
-                      child: Text(
-                        "Carrito vacío",
-                        style: TextStyle(color: Colors.grey),
-                      ),
-                    ),
-                  )
+                        child: Text("Carrito vacío",
+                            style: TextStyle(color: Colors.grey))))
                 : Expanded(
                     flex: isMobile ? 0 : 1,
                     child: SizedBox(
-                      height: isMobile ? 200 : null,
+                      height: isMobile ? 300 : null,
                       child: ListView.separated(
                         itemCount: _cart.length,
                         separatorBuilder: (_, __) =>
                             const Divider(color: Colors.white10),
                         itemBuilder: (ctx, i) {
                           return _CartItemTile(
-                            key: ValueKey(_cart[i]),
+                            key: ValueKey(
+                                _cart[i]), // Clave única para rendimiento
                             item: _cart[i],
                             onDelete: () => setState(() => _cart.removeAt(i)),
-                            onUpdate: () => setState(() {}),
+                            onUpdate: () => setState(
+                                () {}), // Refrescar total al cambiar cantidad
                           );
                         },
                       ),
@@ -147,96 +130,86 @@ class _PosScreenState extends State<PosScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // Selector de Fecha
             InkWell(
               onTap: _pickDate,
               child: Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  border: Border.all(color: Colors.white24),
-                  borderRadius: BorderRadius.circular(8),
-                  color: Colors.white.withOpacity(0.05),
-                ),
+                    border: Border.all(color: Colors.white24),
+                    borderRadius: BorderRadius.circular(8),
+                    color: Colors.white.withOpacity(0.05)),
                 child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          "Fecha Registro",
-                          style: TextStyle(color: Colors.grey, fontSize: 12),
-                        ),
-                        Text(
-                          dateStr,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        )
-                      ],
-                    ),
-                    const Icon(Icons.calendar_today, color: AppTheme.primary),
-                  ],
-                ),
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text("Fecha Registro",
+                                style: TextStyle(
+                                    color: Colors.grey, fontSize: 12)),
+                            Text(dateStr,
+                                style: const TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold))
+                          ]),
+                      const Icon(Icons.calendar_today, color: AppTheme.primary),
+                    ]),
               ),
             ),
             const SizedBox(height: 20),
             const Divider(height: 30, color: Colors.white10),
 
-            // Total Calculado
+            // Total Calculado usando Formatter
             _SummaryRow(
-              label: "Total a Pagar",
-              value: "\$${total.toStringAsFixed(2)}",
-              isTotal: true,
-            ),
+                label: "Total a Pagar",
+                value: "\$ ${AppFormatters.money(total)}",
+                isTotal: true),
+
             const Spacer(),
 
             // Botón Cobrar
             SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed:
-                    _cart.isEmpty ? null : () => _showCheckoutDialog(total),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppTheme.primary,
-                  padding: const EdgeInsets.symmetric(vertical: 20),
-                ),
-                child: const Text("COBRAR / DIVIDIR"),
-              ),
-            ),
+                width: double.infinity,
+                child: ElevatedButton(
+                    onPressed:
+                        _cart.isEmpty ? null : () => _showCheckoutDialog(total),
+                    style: ElevatedButton.styleFrom(
+                        backgroundColor: AppTheme.primary,
+                        padding: const EdgeInsets.symmetric(vertical: 20)),
+                    child: const Text("COBRAR / DIVIDIR"))),
           ],
         ),
       ),
     );
 
-    // LAYOUT PRINCIPAL
+    // --- LAYOUT PRINCIPAL RESPONSIVO ---
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         if (!isMobile) ...[
-          const Text(
-            "Módulo de Ventas",
-            style: TextStyle(
-              fontSize: 28,
-              fontWeight: FontWeight.bold,
-              color: Colors.white,
-            ),
-          ),
+          const Text("Módulo de Ventas",
+              style: TextStyle(
+                  fontSize: 28,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white)),
           const SizedBox(height: 20),
         ],
         Expanded(
           child: isMobile
               ? SingleChildScrollView(
+                  // Diseño Móvil: Scroll Vertical
                   child: Column(
                     children: [
                       SizedBox(height: 400, child: cartSection),
                       const SizedBox(height: 10),
                       SizedBox(height: 250, child: summarySection),
-                      const SizedBox(height: 80),
+                      const SizedBox(height: 80), // Espacio extra abajo
                     ],
                   ),
                 )
               : Row(
+                  // Diseño PC: Dos columnas lado a lado
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Expanded(flex: 2, child: cartSection),
@@ -253,27 +226,21 @@ class _PosScreenState extends State<PosScreen> {
 
   Future<void> _pickDate() async {
     final pickedDate = await showDatePicker(
-      context: context,
-      initialDate: _selectedDate,
-      firstDate: DateTime(2020),
-      lastDate: DateTime.now(),
-      builder: (context, child) {
-        return Theme(data: AppTheme.darkTheme, child: child!);
-      },
-    );
-
-    if (pickedDate != null) {
-      setState(() => _selectedDate = pickedDate);
-    }
+        context: context,
+        initialDate: _selectedDate,
+        firstDate: DateTime(2020),
+        lastDate: DateTime.now(),
+        builder: (context, child) =>
+            Theme(data: AppTheme.darkTheme, child: child!));
+    if (pickedDate != null) setState(() => _selectedDate = pickedDate);
   }
 
   Widget _buildProductAutocomplete() {
     return Autocomplete<Map<String, dynamic>>(
       displayStringForOption: (option) => option['name'],
       optionsBuilder: (TextEditingValue textEditingValue) async {
-        if (textEditingValue.text.isEmpty) {
+        if (textEditingValue.text.isEmpty)
           return const Iterable<Map<String, dynamic>>.empty();
-        }
 
         final response = await Supabase.instance.client
             .from('products')
@@ -304,7 +271,6 @@ class _PosScreenState extends State<PosScreen> {
             border: OutlineInputBorder(),
             enabledBorder:
                 OutlineInputBorder(borderSide: BorderSide(color: Colors.grey)),
-            // Aseguramos padding vertical para que coincida con el precio
             contentPadding: EdgeInsets.symmetric(vertical: 18, horizontal: 12),
           ),
         );
@@ -324,14 +290,10 @@ class _PosScreenState extends State<PosScreen> {
                 itemBuilder: (context, index) {
                   final option = options.elementAt(index);
                   return ListTile(
-                    title: Text(
-                      option['name'],
-                      style: const TextStyle(color: Colors.white),
-                    ),
-                    subtitle: Text(
-                      "\$${option['price']}",
-                      style: const TextStyle(color: AppTheme.accentGreen),
-                    ),
+                    title: Text(option['name'],
+                        style: const TextStyle(color: Colors.white)),
+                    subtitle: Text("\$ ${AppFormatters.money(option['price'])}",
+                        style: const TextStyle(color: AppTheme.accentGreen)),
                     onTap: () => onSelected(option),
                   );
                 },
@@ -346,10 +308,13 @@ class _PosScreenState extends State<PosScreen> {
   void _addToCart() {
     if (_selectedProductName.isEmpty || _priceCtrl.text.isEmpty) return;
 
+    // Parseo inteligente (Acepta comas)
+    final price = AppFormatters.stringToDouble(_priceCtrl.text);
+
     setState(() {
       _cart.add({
         'name': _selectedProductName,
-        'price': double.parse(_priceCtrl.text),
+        'price': price,
         'qty': 1,
         'productId': _selectedProductId
       });
@@ -364,7 +329,6 @@ class _PosScreenState extends State<PosScreen> {
   void _showCheckoutDialog(double totalAmount) async {
     final customers =
         await Supabase.instance.client.from('customers').select().order('name');
-
     final List<String> selectedIds = [];
     Map<String, double> customAmounts = {};
     String searchQuery = "";
@@ -385,21 +349,21 @@ class _PosScreenState extends State<PosScreen> {
                 .toList();
 
             double assignedTotal = isCustomSplit
-                ? customAmounts.values.fold(0, (sum, val) => sum + val)
-                : 0;
+                ? customAmounts.values
+                    .fold(0.0, (sum, val) => sum + val) // CORREGIDO 0.0
+                : 0.0;
 
+            // CORRECCIÓN 2: Usamos 0.0 aquí también
             final equalShare =
-                selectedIds.isEmpty ? 0 : totalAmount / selectedIds.length;
+                selectedIds.isEmpty ? 0.0 : totalAmount / selectedIds.length;
 
             bool isValid = selectedIds.isNotEmpty &&
                 (!isCustomSplit || (assignedTotal - totalAmount).abs() < 0.05);
 
             return AlertDialog(
               backgroundColor: AppTheme.surface,
-              title: const Text(
-                "Procesar Venta",
-                style: TextStyle(color: Colors.white),
-              ),
+              title: const Text("Procesar Venta",
+                  style: TextStyle(color: Colors.white)),
               content: SizedBox(
                 width: 500,
                 height: 600,
@@ -409,37 +373,29 @@ class _PosScreenState extends State<PosScreen> {
                     Container(
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
-                        color: AppTheme.background,
-                        borderRadius: BorderRadius.circular(12),
-                      ),
+                          color: AppTheme.background,
+                          borderRadius: BorderRadius.circular(12)),
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              const Text(
-                                "TOTAL",
-                                style:
-                                    TextStyle(color: Colors.grey, fontSize: 10),
-                              ),
-                              Text(
-                                "\$${totalAmount.toStringAsFixed(2)}",
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 24,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
+                              const Text("TOTAL",
+                                  style: TextStyle(
+                                      color: Colors.grey, fontSize: 10)),
+                              Text("\$ ${AppFormatters.money(totalAmount)}",
+                                  style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 24,
+                                      fontWeight: FontWeight.bold)),
                             ],
                           ),
                           Row(
                             children: [
-                              const Text(
-                                "Equitativo",
-                                style:
-                                    TextStyle(color: Colors.grey, fontSize: 12),
-                              ),
+                              const Text("Equitativo",
+                                  style: TextStyle(
+                                      color: Colors.grey, fontSize: 12)),
                               Switch(
                                 value: isCustomSplit,
                                 activeColor: AppTheme.primary,
@@ -448,11 +404,9 @@ class _PosScreenState extends State<PosScreen> {
                                   customAmounts.clear();
                                 }),
                               ),
-                              const Text(
-                                "Manual",
-                                style:
-                                    TextStyle(color: Colors.grey, fontSize: 12),
-                              ),
+                              const Text("Manual",
+                                  style: TextStyle(
+                                      color: Colors.grey, fontSize: 12)),
                             ],
                           )
                         ],
@@ -464,9 +418,14 @@ class _PosScreenState extends State<PosScreen> {
                     TextField(
                       style: const TextStyle(color: Colors.white),
                       decoration: const InputDecoration(
-                        hintText: "Buscar cliente...",
-                        prefixIcon: Icon(Icons.search, color: Colors.grey),
-                      ),
+                          hintText: "Buscar cliente...",
+                          prefixIcon: Icon(Icons.search, color: Colors.grey),
+                          filled: true,
+                          fillColor: Colors.black26,
+                          border: OutlineInputBorder(
+                              borderRadius:
+                                  BorderRadius.all(Radius.circular(8)),
+                              borderSide: BorderSide.none)),
                       onChanged: (val) =>
                           setDialogState(() => searchQuery = val),
                     ),
@@ -481,13 +440,12 @@ class _PosScreenState extends State<PosScreen> {
                           final isSelected = selectedIds.contains(c['id']);
 
                           return Container(
-                            margin: const EdgeInsets.only(bottom: 5),
+                            margin: const EdgeInsets.only(bottom: 4),
                             decoration: BoxDecoration(
-                              color: isSelected
-                                  ? AppTheme.primary.withOpacity(0.1)
-                                  : null,
-                              borderRadius: BorderRadius.circular(8),
-                            ),
+                                color: isSelected
+                                    ? AppTheme.primary.withOpacity(0.1)
+                                    : null,
+                                borderRadius: BorderRadius.circular(6)),
                             child: ListTile(
                               leading: Checkbox(
                                 value: isSelected,
@@ -503,33 +461,37 @@ class _PosScreenState extends State<PosScreen> {
                                   });
                                 },
                               ),
-                              title: Text(
-                                c['name'],
-                                style: const TextStyle(color: Colors.white),
-                              ),
+                              title: Text(c['name'],
+                                  style: const TextStyle(
+                                      color: Colors.white, fontSize: 14)),
                               trailing: (isSelected && isCustomSplit)
                                   ? SizedBox(
-                                      width: 80,
+                                      width: 90,
                                       child: TextFormField(
                                         initialValue: customAmounts[c['id']]
                                                 ?.toString() ??
                                             "",
-                                        keyboardType: TextInputType.number,
+                                        keyboardType: const TextInputType
+                                            .numberWithOptions(decimal: true),
                                         style: const TextStyle(
-                                            color: Colors.white),
-                                        onChanged: (val) {
-                                          setDialogState(() =>
-                                              customAmounts[c['id']] =
-                                                  double.tryParse(val) ?? 0);
-                                        },
+                                            color: Colors.white,
+                                            fontWeight: FontWeight.bold),
+                                        decoration: const InputDecoration(
+                                            hintText: "0,00",
+                                            isDense: true,
+                                            contentPadding: EdgeInsets.all(8)),
+                                        // PARSEO DE COMAS EN SPLIT
+                                        onChanged: (val) => setDialogState(() =>
+                                            customAmounts[c['id']] =
+                                                AppFormatters.stringToDouble(
+                                                    val)),
                                       ),
                                     )
                                   : isSelected
                                       ? Text(
-                                          "\$${equalShare.toStringAsFixed(2)}",
+                                          "\$ ${AppFormatters.money(equalShare)}",
                                           style: const TextStyle(
-                                              color: AppTheme.accentGreen),
-                                        )
+                                              color: AppTheme.accentGreen))
                                       : null,
                             ),
                           );
@@ -537,12 +499,11 @@ class _PosScreenState extends State<PosScreen> {
                       ),
                     ),
 
-                    // Footer de Validación Manual
                     if (isCustomSplit)
                       Padding(
                         padding: const EdgeInsets.only(top: 8.0),
                         child: Text(
-                          "Falta asignar: \$${(totalAmount - assignedTotal).toStringAsFixed(2)}",
+                          "Falta asignar: \$ ${AppFormatters.money(totalAmount - assignedTotal)}",
                           style: TextStyle(
                               color: (totalAmount - assignedTotal).abs() < 0.05
                                   ? Colors.green
@@ -555,14 +516,13 @@ class _PosScreenState extends State<PosScreen> {
               ),
               actions: [
                 TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: const Text("Cancelar"),
-                ),
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text("Cancelar",
+                        style: TextStyle(color: Colors.grey))),
                 ElevatedButton(
                   onPressed: isValid
                       ? () async {
                           Navigator.pop(context);
-
                           Map<String, double> finalSplit = {};
                           if (isCustomSplit) {
                             finalSplit = customAmounts;
@@ -570,31 +530,29 @@ class _PosScreenState extends State<PosScreen> {
                             double perPerson = double.parse(
                                 (totalAmount / selectedIds.length)
                                     .toStringAsFixed(2));
-                            for (var id in selectedIds) {
+                            for (var id in selectedIds)
                               finalSplit[id] = perPerson;
-                            }
                           }
-
-                          await _salesService.processSaleWithCustomSplit(
-                            splitData: finalSplit,
-                            items: _cart,
-                            totalAmount: totalAmount,
-                            note: "Venta POS",
-                            // --- AQUÍ ESTÁ EL CAMBIO CLAVE ---
-                            customDate:
-                                _selectedDate.toUtc(), // Enviamos en UTC
-                          );
-
-                          if (mounted) {
-                            setState(() {
-                              _cart.clear();
-                              _selectedDate = DateTime.now();
-                            });
+                          try {
+                            await _salesService.processSaleWithCustomSplit(
+                                splitData: finalSplit,
+                                items: _cart,
+                                totalAmount: totalAmount,
+                                note: "Venta POS",
+                                customDate: _selectedDate.toUtc());
+                            if (mounted) {
+                              setState(() {
+                                _cart.clear();
+                                _selectedDate = DateTime.now();
+                              });
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                      content: Text("Venta Registrada!"),
+                                      backgroundColor: Colors.green));
+                            }
+                          } catch (e) {
                             ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text("Venta Registrada!"),
-                              ),
-                            );
+                                SnackBar(content: Text("Error: $e")));
                           }
                         }
                       : null,
@@ -609,26 +567,22 @@ class _PosScreenState extends State<PosScreen> {
   }
 }
 
-// --- WIDGET DE ITEM DE CARRITO (Con Cantidad Editable) ---
+// --- WIDGET ITEM DEL CARRITO ---
 class _CartItemTile extends StatefulWidget {
   final Map<String, dynamic> item;
   final VoidCallback onDelete;
   final VoidCallback onUpdate;
-
-  const _CartItemTile({
-    super.key,
-    required this.item,
-    required this.onDelete,
-    required this.onUpdate,
-  });
-
+  const _CartItemTile(
+      {super.key,
+      required this.item,
+      required this.onDelete,
+      required this.onUpdate});
   @override
   State<_CartItemTile> createState() => _CartItemTileState();
 }
 
 class _CartItemTileState extends State<_CartItemTile> {
   late TextEditingController _qtyCtrl;
-
   @override
   void initState() {
     super.initState();
@@ -673,73 +627,43 @@ class _CartItemTileState extends State<_CartItemTile> {
     final isFreeItem = widget.item['productId'] == null;
     return ListTile(
       contentPadding: EdgeInsets.zero,
-      leading: Icon(
-        isFreeItem ? Icons.edit_note : Icons.liquor,
-        color: isFreeItem ? Colors.orange : Colors.blue,
-      ),
-      title: Text(
-        widget.item['name'],
-        style: const TextStyle(color: Colors.white),
-      ),
-      subtitle: Text(
-        "\$${widget.item['price']}",
-        style: const TextStyle(color: Colors.grey, fontSize: 12),
-      ),
-      trailing: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          IconButton(
-            icon: const Icon(
-              Icons.remove_circle_outline,
-              color: Colors.grey,
-              size: 20,
-            ),
-            onPressed: () => _changeQtyBy(-1),
-          ),
-          SizedBox(
+      leading: Icon(isFreeItem ? Icons.edit_note : Icons.liquor,
+          color: isFreeItem ? Colors.orange : Colors.blue),
+      title: Text(widget.item['name'],
+          style: const TextStyle(color: Colors.white)),
+      subtitle: Text("\$ ${AppFormatters.money(widget.item['price'])}",
+          style: const TextStyle(color: Colors.grey, fontSize: 12)),
+      trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+        IconButton(
+            icon: const Icon(Icons.remove_circle_outline,
+                color: Colors.grey, size: 20),
+            onPressed: () => _changeQtyBy(-1)),
+        SizedBox(
             width: 40,
             child: TextField(
-              controller: _qtyCtrl,
-              keyboardType: TextInputType.number,
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
-              ),
-              decoration: const InputDecoration(
-                isDense: true,
-                border: InputBorder.none,
-                contentPadding: EdgeInsets.zero,
-              ),
-              onChanged: _updateQty,
-            ),
-          ),
-          IconButton(
-            icon: const Icon(
-              Icons.add_circle_outline,
-              color: Colors.grey,
-              size: 20,
-            ),
-            onPressed: () => _changeQtyBy(1),
-          ),
-          const SizedBox(width: 10),
-          Text(
-            "\$${(widget.item['price'] * widget.item['qty']).toStringAsFixed(2)}",
+                controller: _qtyCtrl,
+                keyboardType: TextInputType.number,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                    color: Colors.white, fontWeight: FontWeight.bold),
+                decoration: const InputDecoration(
+                    isDense: true,
+                    border: InputBorder.none,
+                    contentPadding: EdgeInsets.zero),
+                onChanged: _updateQty)),
+        IconButton(
+            icon: const Icon(Icons.add_circle_outline,
+                color: Colors.grey, size: 20),
+            onPressed: () => _changeQtyBy(1)),
+        const SizedBox(width: 10),
+        Text(
+            "\$ ${AppFormatters.money((widget.item['price'] * widget.item['qty']).toDouble())}",
             style: const TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          IconButton(
-            icon: const Icon(
-              Icons.delete,
-              color: AppTheme.accentRed,
-              size: 20,
-            ),
-            onPressed: widget.onDelete,
-          ),
-        ],
-      ),
+                color: Colors.white, fontWeight: FontWeight.bold)),
+        IconButton(
+            icon: const Icon(Icons.delete, color: AppTheme.accentRed, size: 20),
+            onPressed: widget.onDelete),
+      ]),
     );
   }
 }
@@ -748,35 +672,21 @@ class _SummaryRow extends StatelessWidget {
   final String label;
   final String value;
   final bool isTotal;
-
-  const _SummaryRow({
-    required this.label,
-    required this.value,
-    this.isTotal = false,
-  });
-
+  const _SummaryRow(
+      {required this.label, required this.value, this.isTotal = false});
   @override
   Widget build(BuildContext context) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(
-          label,
+    return Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+      Text(label,
           style: TextStyle(
-            color: isTotal ? Colors.white : Colors.grey,
-            fontSize: isTotal ? 18 : 14,
-            fontWeight: isTotal ? FontWeight.bold : FontWeight.normal,
-          ),
-        ),
-        Text(
-          value,
+              color: isTotal ? Colors.white : Colors.grey,
+              fontSize: isTotal ? 18 : 14,
+              fontWeight: isTotal ? FontWeight.bold : FontWeight.normal)),
+      Text(value,
           style: TextStyle(
-            color: isTotal ? Colors.white : Colors.white,
-            fontSize: isTotal ? 24 : 14,
-            fontWeight: isTotal ? FontWeight.bold : FontWeight.normal,
-          ),
-        )
-      ],
-    );
+              color: isTotal ? Colors.white : Colors.white,
+              fontSize: isTotal ? 24 : 14,
+              fontWeight: isTotal ? FontWeight.bold : FontWeight.normal))
+    ]);
   }
 }

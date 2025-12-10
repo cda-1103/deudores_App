@@ -9,9 +9,11 @@ import 'features/customers/customers_screen.dart';
 import 'features/dashboard/dashboard_screen.dart';
 import 'features/settings/settings_screen.dart';
 import 'features/payments/payments_screen.dart'; // Importamos la nueva pantalla
+import 'package:intl/date_symbol_data_local.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await initializeDateFormatting('es_VE', null);
 
   // COLOCA TUS CLAVES AQUÍ
   await Supabase.initialize(

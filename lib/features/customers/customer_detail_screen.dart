@@ -6,6 +6,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../config/themes.dart';
 import '../../providers/app_state_provider.dart';
 import '../../core/utils/client_pdf.dart';
+import '../../core/utils/formatters.dart'; // CLAVE PARA EL FORMATO
 
 class CustomerDetailScreen extends StatefulWidget {
   final String customerId;
@@ -228,7 +229,7 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen>
     final provider = Provider.of<AppStateProvider>(context, listen: false);
 
     // Estado local del diálogo
-    String bsEquivalent = "Bs. 0.00";
+    String bsEquivalent = "Bs. 0,00";
     DateTime selectedDate = DateTime.now();
 
     showDialog(
@@ -244,7 +245,8 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen>
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text("Deuda actual: \$${currentBalance.toStringAsFixed(2)}",
+                  Text(
+                      "Deuda actual: \$ ${AppFormatters.money(currentBalance)}",
                       style: const TextStyle(color: Colors.grey)),
                   const SizedBox(height: 15),
 
@@ -320,8 +322,10 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen>
                         prefixIcon:
                             Icon(Icons.attach_money, color: Colors.green)),
                     onChanged: (val) {
+                      // PARSEO INTELIGENTE
+                      final amount = AppFormatters.stringToDouble(val);
                       setDialogState(() {
-                        bsEquivalent = provider.toBs(double.tryParse(val) ?? 0);
+                        bsEquivalent = provider.toBs(amount);
                       });
                     },
                   ),
@@ -337,7 +341,7 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen>
                                   color: AppTheme.accentGreen,
                                   fontWeight: FontWeight.bold)),
                           Text(
-                              "Tasa: Bs. ${provider.activeRate.toStringAsFixed(2)}",
+                              "Tasa: Bs. ${AppFormatters.money(provider.activeRate)}",
                               style: const TextStyle(
                                   color: Colors.white54, fontSize: 11)),
                         ],
@@ -367,8 +371,8 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen>
               style: ElevatedButton.styleFrom(
                   backgroundColor: AppTheme.accentGreen),
               onPressed: () async {
-                final amount = double.tryParse(amountCtrl.text);
-                if (amount != null && amount > 0 && selectedMethod != null) {
+                final amount = AppFormatters.stringToDouble(amountCtrl.text);
+                if (amount > 0 && selectedMethod != null) {
                   try {
                     await _supabase.from('movements').insert({
                       'customer_id': widget.customerId,
@@ -377,7 +381,7 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen>
                       'description':
                           'Abono ($selectedMethod)${noteCtrl.text.isNotEmpty ? ' - ${noteCtrl.text}' : ''}',
                       'payment_method': selectedMethod,
-                      // GUARDAMOS LA FECHA EN UTC PARA EVITAR ERRORES DE ZONA HORARIA
+                      // UTC PARA EVITAR ERROR DE FECHA
                       'created_at': selectedDate.toUtc().toIso8601String()
                     });
                     _refreshCustomerData();
@@ -491,7 +495,7 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen>
     if (!cleanPhone.startsWith('58')) cleanPhone = '58$cleanPhone';
 
     final bsAmount = provider.toBs(amount);
-    final rateStr = provider.activeRate.toStringAsFixed(2);
+    final rateStr = AppFormatters.money(provider.activeRate);
     final dateStr = DateFormat('dd/MM/yyyy').format(DateTime.now());
 
     final message = """
@@ -500,7 +504,7 @@ Hola $name, le escribimos de BBT Licores.
 Fecha: $dateStr
 Tasa: $rateStr Bs/\$
 
-Su saldo pendiente es de: \$$amount ($bsAmount).
+Su saldo pendiente es de: \$${AppFormatters.money(amount)} ($bsAmount).
 
 *Formas de Pago*
 
@@ -610,14 +614,17 @@ Agradecemos su pago.""";
                               child: Column(children: [
                                 const Text("Saldo Actual",
                                     style: TextStyle(color: Colors.grey)),
-                                Text("\$${currentBalance.toStringAsFixed(2)}",
+                                // FORMATO
+                                Text(
+                                    "\$ ${AppFormatters.money(currentBalance)}",
                                     style: TextStyle(
                                         fontSize: 28,
                                         fontWeight: FontWeight.bold,
                                         color: currentBalance > 0
                                             ? AppTheme.accentRed
                                             : AppTheme.accentGreen)),
-                                Text(provider.toBs(currentBalance),
+                                Text(
+                                    "Bs. ${AppFormatters.money(currentBalance * provider.activeRate)}",
                                     style: const TextStyle(
                                         color: Colors.grey, fontSize: 12))
                               ]))),
@@ -729,7 +736,8 @@ Agradecemos su pago.""";
                           : Colors.greenAccent,
                       fontSize: 12)),
               trailing: Row(mainAxisSize: MainAxisSize.min, children: [
-                Text("\$${(mov['amount'] as num).toStringAsFixed(2)}",
+                Text(
+                    "\$ ${AppFormatters.money((mov['amount'] as num).toDouble())}",
                     style: const TextStyle(
                         color: Colors.white, fontWeight: FontWeight.bold)),
                 const SizedBox(width: 10),
@@ -774,13 +782,13 @@ class _EditPaymentSheetState extends State<_EditPaymentSheet> {
 
   Future<void> _save() async {
     setState(() => _isLoading = true);
+    final amount = AppFormatters.stringToDouble(_amountCtrl.text); // Parseo
     try {
       await _supabase.from('movements').update({
-        'amount': double.parse(_amountCtrl.text),
+        'amount': amount,
         'description': _noteCtrl.text,
         'payment_method': _method,
-        // GUARDAMOS EN UTC PARA EVITAR ERROR DE FECHA
-        'created_at': _date.toUtc().toIso8601String()
+        'created_at': _date.toUtc().toIso8601String() // UTC
       }).eq('id', widget.movement['id']);
 
       if (mounted) {
@@ -836,7 +844,8 @@ class _EditPaymentSheetState extends State<_EditPaymentSheet> {
             Expanded(
                 child: TextField(
                     controller: _amountCtrl,
-                    keyboardType: TextInputType.number,
+                    keyboardType:
+                        const TextInputType.numberWithOptions(decimal: true),
                     style: const TextStyle(color: Colors.white),
                     decoration: const InputDecoration(
                         labelText: "Monto",
@@ -903,7 +912,7 @@ class _EditSaleSheetState extends State<_EditSaleSheet> {
   bool _isLoading = true;
   final TextEditingController _addItemPriceCtrl = TextEditingController();
   String _addItemName = "";
-  int? _correlativeId; // Para preservar el ID original
+  int? _correlativeId;
 
   @override
   void initState() {
@@ -927,7 +936,7 @@ class _EditSaleSheetState extends State<_EditSaleSheet> {
           _noteCtrl.text = sale['note'] ?? '';
           _saleDate = DateTime.parse(sale['created_at']).toLocal();
           _items = List<Map<String, dynamic>>.from(items);
-          _correlativeId = sale['correlative_id']; // Guardamos el ID original
+          _correlativeId = sale['correlative_id'];
           _isLoading = false;
         });
       }
@@ -938,12 +947,13 @@ class _EditSaleSheetState extends State<_EditSaleSheet> {
 
   void _addNewItem() {
     if (_addItemName.isEmpty || _addItemPriceCtrl.text.isEmpty) return;
+    final price = AppFormatters.stringToDouble(_addItemPriceCtrl.text);
     setState(() {
       _items.add({
         'item_name': _addItemName,
-        'unit_price': double.parse(_addItemPriceCtrl.text),
+        'unit_price': price,
         'quantity': 1,
-        'total': double.parse(_addItemPriceCtrl.text)
+        'total': price
       });
       _addItemName = "";
       _addItemPriceCtrl.clear();
@@ -976,7 +986,6 @@ class _EditSaleSheetState extends State<_EditSaleSheet> {
     double newTotal =
         _items.fold(0, (sum, item) => sum + (item['total'] as num));
 
-    // Generar nuevo resumen manteniendo el formato original
     String itemsSummary =
         _items.map((i) => "${i['quantity']}x ${i['item_name']}").join(", ");
     if (itemsSummary.length > 100)
@@ -986,15 +995,12 @@ class _EditSaleSheetState extends State<_EditSaleSheet> {
     String finalDescription = '$prefix: $itemsSummary';
 
     try {
-      // 1. Actualizar venta
       await _supabase.from('sales').update({
         'total_amount': newTotal,
         'note': _noteCtrl.text,
-        // GUARDAMOS EN UTC
-        'created_at': _saleDate.toUtc().toIso8601String()
+        'created_at': _saleDate.toUtc().toIso8601String() // UTC
       }).eq('id', widget.saleId);
 
-      // 2. Reemplazar items
       await _supabase.from('sale_items').delete().eq('sale_id', widget.saleId);
       final newItems = _items
           .map((i) => {
@@ -1007,16 +1013,14 @@ class _EditSaleSheetState extends State<_EditSaleSheet> {
           .toList();
       await _supabase.from('sale_items').insert(newItems);
 
-      // 3. Actualizar deuda del cliente (Movement)
       await _supabase.from('movements').update({
         'amount': newTotal,
-        'description': finalDescription, // Usamos la descripción limpia
-        // GUARDAMOS EN UTC TAMBIÉN
-        'created_at': _saleDate.toUtc().toIso8601String()
+        'description': finalDescription,
+        'created_at': _saleDate.toUtc().toIso8601String() // UTC
       }).match({'sale_id': widget.saleId, 'customer_id': widget.customerId});
 
       if (mounted) {
-        widget.onSave(); // Callback para refrescar padre
+        widget.onSave();
         Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
             content: Text("Venta actualizada"), backgroundColor: Colors.green));
@@ -1049,8 +1053,6 @@ class _EditSaleSheetState extends State<_EditSaleSheet> {
                 icon: const Icon(Icons.close, color: Colors.grey))
           ]),
           const SizedBox(height: 20),
-
-          // Fecha y Nota
           Row(children: [
             Expanded(
                 child: InkWell(
@@ -1087,12 +1089,9 @@ class _EditSaleSheetState extends State<_EditSaleSheet> {
                         isDense: true,
                         border: OutlineInputBorder()))),
           ]),
-
           const SizedBox(height: 20),
           const Text("Productos", style: TextStyle(color: Colors.grey)),
           const Divider(color: Colors.white24),
-
-          // Lista de Items
           Expanded(
               child: ListView.separated(
                   itemCount: _items.length,
@@ -1106,7 +1105,8 @@ class _EditSaleSheetState extends State<_EditSaleSheet> {
                         contentPadding: EdgeInsets.zero,
                         title: Text(item['item_name'],
                             style: const TextStyle(color: Colors.white)),
-                        subtitle: Text("\$${item['unit_price']}",
+                        subtitle: Text(
+                            "\$ ${AppFormatters.money(item['unit_price'])}",
                             style: const TextStyle(color: Colors.green)),
                         trailing:
                             Row(mainAxisSize: MainAxisSize.min, children: [
@@ -1129,7 +1129,8 @@ class _EditSaleSheetState extends State<_EditSaleSheet> {
                                   color: Colors.grey, size: 18),
                               onPressed: () => _updateQtyBtn(i, 1)),
                           const SizedBox(width: 10),
-                          Text("\$${(item['total'] as num).toStringAsFixed(2)}",
+                          Text(
+                              "\$ ${AppFormatters.money((item['total'] as num).toDouble())}",
                               style: const TextStyle(color: Colors.white)),
                           const SizedBox(width: 5),
                           IconButton(
@@ -1138,116 +1139,85 @@ class _EditSaleSheetState extends State<_EditSaleSheet> {
                               onPressed: () => _removeItem(i))
                         ]));
                   })),
-
-          // Agregar Item (Autocompletar)
           Container(
-            padding: const EdgeInsets.all(10),
-            color: Colors.white.withOpacity(0.05),
-            child: Row(
-              children: [
+              padding: const EdgeInsets.all(10),
+              color: Colors.white.withOpacity(0.05),
+              child: Row(children: [
                 Expanded(
-                  flex: 2,
-                  child: Autocomplete<Map<String, dynamic>>(
-                    optionsBuilder: (textEditingValue) async {
-                      if (textEditingValue.text.isEmpty)
-                        return const Iterable<Map<String, dynamic>>.empty();
-                      final response = await Supabase.instance.client
-                          .from('products')
-                          .select('name, price')
-                          .ilike('name', '%${textEditingValue.text}%')
-                          .limit(5);
-                      return List<Map<String, dynamic>>.from(response);
-                    },
-                    displayStringForOption: (option) => option['name'],
-                    onSelected: (option) {
-                      _addItemName = option['name'];
-                      _addItemPriceCtrl.text = option['price'].toString();
-                    },
-                    fieldViewBuilder:
-                        (context, controller, focusNode, onFieldSubmitted) {
-                      return TextField(
-                        controller: controller,
-                        focusNode: focusNode,
-                        style: const TextStyle(color: Colors.white),
-                        decoration: const InputDecoration(
-                            hintText: "Agregar...",
-                            border: InputBorder.none,
-                            icon: Icon(Icons.search, color: Colors.grey)),
-                        onChanged: (val) => _addItemName = val,
-                      );
-                    },
-                    optionsViewBuilder: (context, onSelected, options) {
-                      return Align(
-                          alignment: Alignment.topLeft,
-                          child: Material(
-                              elevation: 4,
-                              color: AppTheme.surface,
-                              child: SizedBox(
-                                  width: 300,
-                                  child: ListView.builder(
-                                      shrinkWrap: true,
-                                      itemCount: options.length,
-                                      itemBuilder: (context, index) {
-                                        final option = options.elementAt(index);
-                                        return ListTile(
-                                            title: Text(option['name'],
+                    flex: 2,
+                    child: Autocomplete<Map<String, dynamic>>(
+                        optionsBuilder: (v) async {
+                          if (v.text.isEmpty) return [];
+                          final r = await _supabase
+                              .from('products')
+                              .select('name, price')
+                              .ilike('name', '%${v.text}%')
+                              .limit(5);
+                          return List<Map<String, dynamic>>.from(r);
+                        },
+                        displayStringForOption: (o) => o['name'],
+                        onSelected: (o) {
+                          _addItemName = o['name'];
+                          _addItemPriceCtrl.text = o['price'].toString();
+                        },
+                        fieldViewBuilder: (c, ctrl, f, s) => TextField(
+                            controller: ctrl,
+                            focusNode: f,
+                            style: const TextStyle(color: Colors.white),
+                            decoration: const InputDecoration(
+                                hintText: "Agregar...",
+                                border: InputBorder.none,
+                                icon: Icon(Icons.search, color: Colors.grey)),
+                            onChanged: (v) => _addItemName = v),
+                        optionsViewBuilder: (c, s, o) => Align(
+                            alignment: Alignment.topLeft,
+                            child: Material(
+                                elevation: 4,
+                                color: AppTheme.surface,
+                                child: SizedBox(
+                                    width: 300,
+                                    child: ListView.builder(
+                                        shrinkWrap: true,
+                                        itemCount: o.length,
+                                        itemBuilder: (c, i) => ListTile(
+                                            title: Text(o.elementAt(i)['name'],
                                                 style: const TextStyle(
                                                     color: Colors.white)),
-                                            subtitle: Text(
-                                                "\$${option['price']}",
-                                                style: const TextStyle(
-                                                    color:
-                                                        AppTheme.accentGreen)),
-                                            onTap: () => onSelected(option));
-                                      }))));
-                    },
-                  ),
-                ),
+                                            onTap: () =>
+                                                s(o.elementAt(i))))))))),
                 SizedBox(
                     width: 70,
                     child: TextField(
                         controller: _addItemPriceCtrl,
-                        keyboardType: TextInputType.number,
+                        keyboardType: const TextInputType.numberWithOptions(
+                            decimal: true),
                         style: const TextStyle(color: Colors.white),
                         decoration: const InputDecoration(
                             hintText: "\$", border: InputBorder.none))),
                 IconButton(
                     onPressed: _addNewItem,
                     icon: const Icon(Icons.add_circle, color: Colors.blue))
-              ],
-            ),
-          ),
-
+              ])),
           const SizedBox(height: 20),
-
-          // Total y Guardar
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text("Nuevo Total:",
-                      style: TextStyle(color: Colors.grey)),
-                  Text(
-                      "\$${_items.fold(0.0, (sum, i) => sum + (i['total'] as num)).toStringAsFixed(2)}",
-                      style: const TextStyle(
-                          fontSize: 24,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white)),
-                ],
-              ),
-              ElevatedButton.icon(
+          Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+            Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              const Text("Nuevo Total:", style: TextStyle(color: Colors.grey)),
+              Text(
+                  "\$ ${AppFormatters.money(_items.fold(0.0, (sum, i) => sum + (i['total'] as num)).toDouble())}",
+                  style: const TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white))
+            ]),
+            ElevatedButton.icon(
                 onPressed: _saveChanges,
                 icon: const Icon(Icons.save),
                 label: const Text("GUARDAR CAMBIOS"),
                 style: ElevatedButton.styleFrom(
                     backgroundColor: AppTheme.accentGreen,
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 24, vertical: 16)),
-              )
-            ],
-          )
+                        horizontal: 24, vertical: 16)))
+          ])
         ],
       ),
     );

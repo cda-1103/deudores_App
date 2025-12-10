@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../config/themes.dart';
 import '../../providers/app_state_provider.dart';
+import '../../core/utils/formatters.dart'; // <--- IMPORTANTE
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -56,7 +57,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           if (!isMobile) ...[
-            // Título solo en Desktop, en móvil ya está en AppBar
             const Text("Dashboard Principal",
                 style: TextStyle(
                     fontSize: 28,
@@ -71,16 +71,19 @@ class _DashboardScreenState extends State<DashboardScreen> {
               children: [
                 _buildRateCard(provider, isManual),
                 const SizedBox(height: 12),
+                // FORMATO EUROPEO EN KPI
                 _KpiCard(
                     title: "Por Cobrar (USD)",
-                    value: "\$ ${_totalDebt.toStringAsFixed(2)}",
+                    value: "\$ ${AppFormatters.money(_totalDebt)}",
                     icon: Icons.account_balance_wallet,
                     color: Colors.orange,
                     isLoading: _isLoadingDebt),
                 const SizedBox(height: 12),
+                // CÁLCULO MANUAL PARA ASEGURAR FORMATO
                 _KpiCard(
                     title: "Equivalente (Bs)",
-                    value: provider.toBs(_totalDebt),
+                    value:
+                        "Bs. ${AppFormatters.money(_totalDebt * provider.activeRate)}",
                     icon: Icons.attach_money,
                     color: Colors.green,
                     isLoading: _isLoadingDebt || provider.isLoading),
@@ -94,7 +97,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 Expanded(
                     child: _KpiCard(
                         title: "Por Cobrar (USD)",
-                        value: "\$ ${_totalDebt.toStringAsFixed(2)}",
+                        value: "\$ ${AppFormatters.money(_totalDebt)}",
                         icon: Icons.account_balance_wallet,
                         color: Colors.orange,
                         isLoading: _isLoadingDebt)),
@@ -102,7 +105,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 Expanded(
                     child: _KpiCard(
                         title: "Equivalente (Bs)",
-                        value: provider.toBs(_totalDebt),
+                        value:
+                            "Bs. ${AppFormatters.money(_totalDebt * provider.activeRate)}",
                         icon: Icons.attach_money,
                         color: Colors.green,
                         isLoading: _isLoadingDebt || provider.isLoading)),
@@ -117,8 +121,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   color: Colors.white)),
           const SizedBox(height: 16),
           _buildActivityTable(supabase),
-          const SizedBox(
-              height: 80), // Espacio extra al final para scroll en móvil
+          const SizedBox(height: 80),
         ],
       ),
     );
@@ -127,7 +130,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Widget _buildRateCard(AppStateProvider provider, bool isManual) {
     return _KpiCard(
       title: isManual ? "Tasa Manual" : "Tasa BCV",
-      value: "Bs. ${provider.activeRate.toStringAsFixed(2)}",
+      // FORMATO EUROPEO EN TASA
+      value: "Bs. ${AppFormatters.money(provider.activeRate)}",
       subtitle: provider.rateDate,
       icon: isManual ? Icons.edit_note : Icons.verified,
       color: isManual ? Colors.purple : Colors.blue,
@@ -189,8 +193,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     style: const TextStyle(color: Colors.grey),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis),
+                // FORMATO EUROPEO EN LISTA
                 trailing: Text(
-                    "${isDebt ? '+' : '-'} \$${amount.toStringAsFixed(2)}",
+                    "${isDebt ? '+' : '-'} \$ ${AppFormatters.money(amount)}",
                     style: TextStyle(
                         color: isDebt ? Colors.white : Colors.green,
                         fontWeight: FontWeight.bold,
@@ -228,7 +233,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
               ListTile(
                 title: const Text("Usar Tasa BCV (API)",
                     style: TextStyle(color: Colors.white)),
-                subtitle: Text("Detectada: Bs. ${provider.officialRate}",
+                // FORMATO EUROPEO EN DIÁLOGO
+                subtitle: Text(
+                    "Detectada: Bs. ${AppFormatters.money(provider.officialRate)}",
                     style: const TextStyle(color: Colors.grey)),
                 leading: const Icon(Icons.cloud_download, color: Colors.blue),
                 onTap: () {
@@ -257,8 +264,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.purple),
                     onPressed: () {
-                      final val = double.tryParse(manualCtrl.text);
-                      if (val != null) {
+                      // PARSEO INTELIGENTE
+                      final val = AppFormatters.stringToDouble(manualCtrl.text);
+                      if (val > 0) {
                         provider.setManualMode(val);
                         Navigator.pop(ctx);
                       }

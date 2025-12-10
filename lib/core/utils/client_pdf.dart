@@ -99,8 +99,6 @@ class ReportGenerator {
                         pw.Text(customerName,
                             style: pw.TextStyle(
                                 fontWeight: pw.FontWeight.bold, fontSize: 14)),
-                        pw.Text("ID: $customerId",
-                            style: const pw.TextStyle(fontSize: 8)),
                       ],
                     ),
                   ),
@@ -218,7 +216,7 @@ class ReportGenerator {
             pw.Divider(color: PdfColors.grey300),
             pw.Align(
               alignment: pw.Alignment.centerRight,
-              child: pw.Text("Generado automáticamente por Sistema BBT Licores",
+              child: pw.Text("Generado automáticamente",
                   style: const pw.TextStyle(
                       fontSize: 8, color: PdfColors.grey500)),
             ),
