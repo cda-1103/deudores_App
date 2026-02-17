@@ -22,8 +22,9 @@ class ReportGenerator {
     }
 
     // 2. Separar datos y calcular totales
-    final sales = movements.where((m) => m['type'] == 'DEBT').toList();
-    final payments = movements.where((m) => m['type'] == 'CREDIT').toList();
+    final sales = movements.where((m) => m['type'] == 'DEBT').toList(); //ventas
+    final payments =
+        movements.where((m) => m['type'] == 'CREDIT').toList(); //pagos
 
     double totalSales =
         sales.fold(0.0, (sum, m) => sum + (m['amount'] as num).toDouble());

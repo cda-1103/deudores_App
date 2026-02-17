@@ -1,67 +1,39 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:intl/intl.dart';
 
 class SalesService {
   final SupabaseClient _supabase = Supabase.instance.client;
 
-  // Lógica anterior (Mantenemos por compatibilidad)
-  Future<void> processSale({
-    required List<String> selectedCustomerIds,
-    required List<Map<String, dynamic>> items,
-    required double totalAmount,
-    String? note,
-    DateTime? customDate,
-  }) async {
-    Map<String, double> splitData = {};
-    double perPerson = totalAmount / selectedCustomerIds.length;
-    for (var id in selectedCustomerIds) {
-      splitData[id] = perPerson;
-    }
-
-    await processSaleWithCustomSplit(
-        splitData: splitData,
-        items: items,
-        totalAmount: totalAmount,
-        note: note,
-        customDate: customDate);
-  }
-
-  /// NUEVA FUNCIÓN MAESTRA
+  /// Registra una venta, divide la cuenta y crea el log de auditoría
   Future<void> processSaleWithCustomSplit({
-    required Map<String, double> splitData,
+    required Map<String, double> splitData, 
     required List<Map<String, dynamic>> items,
     required double totalAmount,
     String? note,
     DateTime? customDate,
   }) async {
-    if (splitData.isEmpty)
-      throw Exception("Debe seleccionar al menos un cliente.");
+    if (splitData.isEmpty) throw Exception("Debe seleccionar al menos un cliente.");
 
-    final String dateToSave = (customDate ?? DateTime.now()).toIso8601String();
+    final String dateToSave = (customDate ?? DateTime.now()).toUtc().toIso8601String();
 
-    // 1. GENERAR RESUMEN (Ej: "2x Ron, 1x Hielo")
-    String itemsSummary =
-        items.map((i) => "${i['qty']}x ${i['name']}").join(", ");
-    // Cortamos si es muy largo para que quepa en la base de datos
-    if (itemsSummary.length > 100) {
-      itemsSummary = "${itemsSummary.substring(0, 97)}...";
+    // Generar resumen para la descripción
+    String itemsSummary = items.map((i) => "${i['qty']}x ${i['item_name']}").join(", ");
+    if (itemsSummary.length > 150) {
+      itemsSummary = "${itemsSummary.substring(0, 147)}...";
     }
 
     try {
-      // A. Insertar Cabecera de Venta
-      final saleResponse = await _supabase
-          .from('sales')
-          .insert({
-            'total_amount': totalAmount,
-            'note': note,
-            'created_at': dateToSave,
-          })
-          .select()
-          .single();
+      // 1. Cabecera de Venta
+      final saleResponse = await _supabase.from('sales').insert({
+        'total_amount': totalAmount,
+        'note': note,
+        'created_at': dateToSave,
+      }).select().single();
 
       final String saleId = saleResponse['id'];
       final int correlative = saleResponse['correlative_id'];
 
-      // B. Insertar Items
+      // 2. Items
       if (items.isNotEmpty) {
         final List<Map<String, dynamic>> saleItemsPayload = items.map((item) {
           return {
@@ -76,7 +48,9 @@ class SalesService {
         await _supabase.from('sale_items').insert(saleItemsPayload);
       }
 
-      // C. INSERTAR MOVIMIENTOS CON MEJOR DESCRIPCIÓN
+      // 3. Movimientos (Deuda)
+      String clientNames = ""; // Para el log
+      
       for (var entry in splitData.entries) {
         final customerId = entry.key;
         final amountToPay = entry.value;
@@ -85,13 +59,28 @@ class SalesService {
           'customer_id': customerId,
           'sale_id': saleId,
           'type': 'DEBT',
-          'amount': amountToPay,
+          'amount': amountToPay, 
           'payment_method': 'Cuenta',
-          // AQUÍ ESTÁ EL CAMBIO: Usamos el resumen de items en lugar de texto genérico
-          'description': 'Venta #$correlative: $itemsSummary',
+          'description': 'Venta #$correlative: $itemsSummary', 
           'created_at': dateToSave,
         });
+        
+        // (Opcional: Obtener nombre para el log, aunque consume más recursos)
+        // clientNames += "$customerId "; 
       }
+
+      // 4. AUDITORÍA (LOG)
+      final user = _supabase.auth.currentUser;
+      final userEmail = user?.email ?? 'Desconocido';
+      final nowStr = DateFormat('dd/MM HH:mm').format(DateTime.now());
+      
+      await _supabase.from('action_logs').insert({
+        'user_email': userEmail,
+        'action': 'Nueva Venta',
+        'details': 'Venta #$correlative por \$$totalAmount ($nowStr)',
+        'created_at': DateTime.now().toUtc().toIso8601String() // Fecha real del sistema
+      });
+
     } catch (e) {
       print('Error procesando venta: $e');
       rethrow;
