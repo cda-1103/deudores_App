@@ -34,6 +34,8 @@ dependencies:
   pdf: ^3.10.4
   printing: ^5.11.0
   google_fonts: ^8.0.1
+  excel: ^4.0.6
+  file_picker: ^10.3.10
 
 dev_dependencies:
   flutter_test:
