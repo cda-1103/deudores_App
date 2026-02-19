@@ -284,7 +284,7 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> with Single
                     },
                     child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-                        decoration: BoxDecoration(border: Border.all(color: Colors.white10), borderRadius: BorderRadius.circular(16), color: Colors.black26),
+                        decoration: BoxDecoration(border: Border.all(color: Colors.white10), borderRadius: BorderRadius.circular(12), color: Colors.black12),
                         child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
                           Text("Fecha: ${DateFormat('dd/MM/yyyy').format(selectedDate)}", style: const TextStyle(color: Colors.white70)),
                           const Icon(Icons.calendar_month_rounded, size: 20, color: Colors.blueAccent)
@@ -471,7 +471,6 @@ Agradecemos su pago.""";
 
           return Column(
             children: [
-              // HEADER GLASSMORPHISM (CON COMPRAS, ABONOS Y DEUDA TOTAL)
               Container(
                 margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                 child: _glassContainer(
@@ -528,7 +527,6 @@ Agradecemos su pago.""";
                 ),
               ),
 
-              // Botones de acción rápida
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 child: Row(
@@ -541,7 +539,6 @@ Agradecemos su pago.""";
               ),
               const SizedBox(height: 10),
 
-              // BOTÓN DE ELIMINAR CLIENTE
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 child: SizedBox(
@@ -661,7 +658,6 @@ Agradecemos su pago.""";
   }
 }
 
-// --- WIDGET EDITOR DE ABONO (GLASS) ---
 class _EditPaymentSheet extends StatefulWidget {
   final Map<String, dynamic> movement;
   final VoidCallback onSave;
@@ -820,7 +816,6 @@ class _EditPaymentSheetState extends State<_EditPaymentSheet> {
   }
 }
 
-// --- WIDGET FILA DEL PRODUCTO (PERMITE ESCRIBIR LA CANTIDAD SIN PERDER FOCO) ---
 class _SaleItemRow extends StatefulWidget {
   final Map<String, dynamic> item;
   final Function(int) onQtyChanged;
@@ -868,7 +863,7 @@ class _SaleItemRowState extends State<_SaleItemRow> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.black26, // Fondo más oscuro para contrastar en el Glass
+        color: Colors.black26, 
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: Colors.white.withOpacity(0.05))
       ),
@@ -931,7 +926,6 @@ class _SaleItemRowState extends State<_SaleItemRow> {
   }
 }
 
-// --- WIDGET EDITOR DE VENTA AVANZADO (LÓGICA DE INTEGRIDAD Y GLASS) ---
 class _EditSaleSheet extends StatefulWidget {
   final Map<String, dynamic> movement;
   final String customerId;
@@ -964,17 +958,63 @@ class _EditSaleSheetState extends State<_EditSaleSheet> {
     _loadSaleDetails();
   }
 
+  // --- PARSER DE EXCEL OPTIMIZADO ---
   List<Map<String, dynamic>> _extractItemsFromText(String desc) {
     List<Map<String, dynamic>> items = [];
     try {
-      final regex = RegExp(r'(\d+)\s*x\s*(.*?)\s*\(\s*\$?\s*([\d,.]+)\s*\)');
-      final matches = regex.allMatches(desc);
-      for (final m in matches) {
-        int qty = int.tryParse(m.group(1)!) ?? 1;
-        double t = double.parse(m.group(3)!.replaceAll(',', ''));
-        items.add({'item_name': m.group(2)!.trim(), 'quantity': qty, 'unit_price': t / qty, 'total': t});
+      // Limpiamos la descripción de prefijos como "POS: " o "Excel: "
+      String cleanDesc = desc.replaceAll("POS:", "").replaceAll("Excel:", "").trim();
+
+      // Separamos por comas o saltos de línea para evaluar cada producto individualmente
+      List<String> parts = cleanDesc.split(RegExp(r'[,\n]'));
+
+      for (String part in parts) {
+        part = part.trim();
+        if (part.isEmpty) continue;
+
+        // Intentamos el patrón: [CANTIDAD] [x opcional] [NOMBRE] [PRECIO con o sin $]
+        final regex = RegExp(r'^(\d+)\s*x?\s+(.+?)\s*\(?\$?\s*([\d,.]+)\s*\$?\)?$');
+        final match = regex.firstMatch(part);
+
+        if (match != null) {
+          int qty = int.tryParse(match.group(1)!) ?? 1;
+          String name = match.group(2)!.trim();
+          double t = double.parse(match.group(3)!.replaceAll(',', ''));
+
+          items.add({
+            'item_name': name,
+            'quantity': qty,
+            'unit_price': t / (qty > 0 ? qty : 1),
+            'total': t
+          });
+        } else {
+          // Fallback: Si no tiene cantidad, solo Nombre y Monto al final (ej: "parte sergio 10$")
+          final fallbackRegex = RegExp(r'^(.+?)\s*\(?\$?\s*([\d,.]+)\s*\$?\)?$');
+          final fbMatch = fallbackRegex.firstMatch(part);
+          if (fbMatch != null) {
+            String name = fbMatch.group(1)!.trim();
+            double t = double.parse(fbMatch.group(2)!.replaceAll(',', ''));
+            items.add({'item_name': name, 'quantity': 1, 'unit_price': t, 'total': t});
+          } else {
+             // Si el formato es desconocido, lo registra para edición con monto 0
+             items.add({'item_name': part, 'quantity': 1, 'unit_price': 0.0, 'total': 0.0});
+          }
+        }
       }
-    } catch (_) {}
+    } catch (e) {
+      debugPrint("Error parseando items de Excel: $e");
+    }
+    
+    // SISTEMA ANTIFALLOS: Si no logró encontrar nada válido, mantiene el monto de la deuda para no perder el dinero
+    double sumParsed = items.fold(0.0, (s, i) => s + (i['total'] as num));
+    if (items.isEmpty || sumParsed == 0.0) {
+       items = [{
+         'item_name': desc.isNotEmpty ? desc : 'Venta Importada', 
+         'quantity': 1, 
+         'unit_price': _oldGlobalTotal, 
+         'total': _oldGlobalTotal
+       }];
+    }
     return items;
   }
 
@@ -1031,7 +1071,6 @@ class _EditSaleSheetState extends State<_EditSaleSheet> {
     setState(() => _isLoading = true);
     double newTotal = _items.fold(0, (sum, item) => sum + (item['total'] as num));
     
-    // INTEGRIDAD: Calculamos la diferencia entre el nuevo total y el anterior
     double difference = newTotal - _oldGlobalTotal;
 
     String itemsSummary = _items.map((i) => "${i['quantity']}x ${i['item_name']}").join(", ");
@@ -1042,31 +1081,48 @@ class _EditSaleSheetState extends State<_EditSaleSheet> {
 
     try {
       if (_saleId != null) {
-        // Actualiza el pedido global
         await _supabase.from('sales').update({'total_amount': newTotal, 'note': _noteCtrl.text, 'created_at': _saleDate.toUtc().toIso8601String()}).eq('id', _saleId!);
         await _supabase.from('sale_items').delete().eq('sale_id', _saleId!);
         final newItems = _items.map((i) => {'sale_id': _saleId, 'item_name': i['item_name'], 'unit_price': i['unit_price'], 'quantity': i['quantity'], 'total': i['total']}).toList();
         await _supabase.from('sale_items').insert(newItems);
-        
-        // Actualiza la descripción en TODOS los movimientos vinculados (para que todos vean los nuevos items)
         await _supabase.from('movements').update({'description': finalDescription}).eq('sale_id', _saleId!);
         
-        // Aplica la diferencia de dinero ÚNICAMENTE a la deuda de este cliente
         double currentMovAmount = (widget.movement['amount'] as num).toDouble();
         double newMovAmount = currentMovAmount + difference;
-        if (newMovAmount < 0) newMovAmount = 0; // Evita que una venta baje de cero
+        if (newMovAmount < 0) newMovAmount = 0; 
         
         await _supabase.from('movements').update({'amount': newMovAmount, 'created_at': _saleDate.toUtc().toIso8601String()}).eq('id', widget.movement['id']);
 
       } else {
-        // Caso Excel Import
-        await _supabase.from('movements').update({'amount': newTotal, 'description': finalDescription, 'created_at': _saleDate.toUtc().toIso8601String()}).eq('id', widget.movement['id']);
+        final newSale = await _supabase.from('sales').insert({
+          'total_amount': newTotal,
+          'note': _noteCtrl.text,
+          'created_at': _saleDate.toUtc().toIso8601String()
+        }).select().single();
+        
+        final newSaleId = newSale['id'];
+
+        final newItems = _items.map((i) => {
+          'sale_id': newSaleId, 
+          'item_name': i['item_name'], 
+          'unit_price': i['unit_price'], 
+          'quantity': i['quantity'], 
+          'total': i['total']
+        }).toList();
+        await _supabase.from('sale_items').insert(newItems);
+
+        await _supabase.from('movements').update({
+          'amount': newTotal, 
+          'description': finalDescription, 
+          'sale_id': newSaleId, 
+          'created_at': _saleDate.toUtc().toIso8601String()
+        }).eq('id', widget.movement['id']);
       }
 
       if (mounted) {
         widget.onSave(); 
         Navigator.pop(context);
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Venta actualizada"), backgroundColor: Colors.green));
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Pedido actualizado y estructurado en la BD"), backgroundColor: Colors.green));
       }
     } catch (e) {
       if (mounted) setState(() => _isLoading = false);
@@ -1102,7 +1158,7 @@ class _EditSaleSheetState extends State<_EditSaleSheet> {
 
     return _glassContainer(
       padding: const EdgeInsets.all(24),
-      borderRadius: 30, // Para que coincida con el modal original
+      borderRadius: 30, 
       child: SizedBox(
         height: MediaQuery.of(context).size.height * 0.90,
         child: Column(
@@ -1112,6 +1168,22 @@ class _EditSaleSheetState extends State<_EditSaleSheet> {
               Text(_saleId == null ? "Modificar Pedido (Excel)" : "Modificar Pedido", style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w900, color: Colors.white, letterSpacing: 1.2)),
               IconButton(onPressed: () => Navigator.pop(context), icon: const Icon(Icons.close_rounded, color: Colors.white54, size: 28))
             ]),
+            
+            if (_saleId == null) ...[
+              const SizedBox(height: 10),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(color: Colors.blue.withOpacity(0.2), borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.blueAccent)),
+                child: const Row(
+                  children: [
+                    Icon(Icons.auto_fix_high, color: Colors.blueAccent),
+                    SizedBox(width: 8),
+                    Expanded(child: Text("Este pedido viene de Excel. Al guardar, se convertirá automáticamente en un Pedido Real en la base de datos.", style: TextStyle(color: Colors.white, fontSize: 12))),
+                  ],
+                ),
+              ),
+            ],
+
             const SizedBox(height: 10),
 
             // AGREGAR NUEVO PRODUCTO
@@ -1228,7 +1300,7 @@ class _EditSaleSheetState extends State<_EditSaleSheet> {
                   ElevatedButton.icon(
                     onPressed: _saveChanges,
                     icon: const Icon(Icons.cloud_upload_rounded, color: Colors.white),
-                    label: const Text("ACTUALIZAR", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.white)),
+                    label: Text(_saleId == null ? "CONVERTIR Y GUARDAR" : "ACTUALIZAR", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.white)),
                     style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primary, padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))),
                   )
                 ],
