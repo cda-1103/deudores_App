@@ -438,9 +438,9 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> with Single
     final message = """Hola $name, le escribimos de *BBT TIENDA DE LICORES*.
 
 Fecha: $dateStr
-Tasa: $rateStr Bs/\$
+Tasa: $rateStr Bs/\$ 
 
-Su saldo pendiente a la fecha es de:* \$$amount ($bsAmount)*.
+Su saldo pendiente a la fecha es de: *$amount ($bsAmount BS)*.
 
 Agradecemos su pago.
 
