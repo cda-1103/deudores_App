@@ -435,14 +435,30 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> with Single
     final rateStr = provider.activeRate.toStringAsFixed(2);
     final dateStr = DateFormat('dd/MM/yyyy').format(DateTime.now());
 
-    final message = """Hola $name, le escribimos de BBT Licores.
+    final message = """Hola $name, le escribimos de *BBT TIENDA DE LICORES*.
 
 Fecha: $dateStr
 Tasa: $rateStr Bs/\$
 
-Su saldo pendiente es de: \$$amount ($bsAmount).
+Su saldo pendiente a la fecha es de:* \$$amount ($bsAmount)*.
 
-Agradecemos su pago.""";
+Agradecemos su pago.
+
+*Formas de Pago*
+
+*Transferencia:*
+0108-0372-13-0100303675
+Provincial 
+
+*Pago Móvil*
+28205583
+Provincial 
+04247476273
+
+*Zelle*
+bbtiendadelicores@gmail.com
+
+""";
 
     final url = Uri.parse("https://wa.me/$cleanPhone?text=${Uri.encodeComponent(message)}");
     if (await canLaunchUrl(url)) await launchUrl(url);
