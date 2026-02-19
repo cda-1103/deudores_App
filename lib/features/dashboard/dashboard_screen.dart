@@ -47,16 +47,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Widget build(BuildContext context) {
     final provider = Provider.of<AppStateProvider>(context);
     final supabase = Supabase.instance.client;
-    final isManual = provider.isManual;
     final isMobile = MediaQuery.of(context).size.width < 800;
 
-    // Calculamos valores
     final debtUsd = _totalDebt;
     final debtBs = _totalDebt * provider.activeRate;
 
     return CustomScrollView(
       slivers: [
-        // 1. TÍTULO (Solo Desktop)
         if (!isMobile)
           const SliverToBoxAdapter(
             child: Padding(
@@ -66,37 +63,34 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ),
           ),
 
-        // 2. GRID DE KPIs (TARJETAS)
+        // 1. KPIs con Diseño Glassmorphism Mejorado
         SliverGrid.count(
-          crossAxisCount: isMobile ? 2 : 3, // 2 columnas en móvil, 3 en PC
+          crossAxisCount: isMobile ? 2 : 3,
           crossAxisSpacing: 12,
           mainAxisSpacing: 12,
           childAspectRatio: isMobile ? 1.3 : 1.8, 
           children: [
-            // TASA
             _KpiCard(
-              title: isManual ? "Tasa Manual" : "Tasa BCV",
+              title: provider.isManual ? "Tasa Manual" : "Tasa BCV",
               value: "Bs. ${AppFormatters.money(provider.activeRate)}",
               subtitle: provider.rateDate,
-              icon: isManual ? Icons.edit_note : Icons.verified_user,
-              color: AppTheme.primary,
-              gradient: [AppTheme.primary, const Color(0xFF1E40AF)],
+              icon: Icons.auto_graph_rounded,
+              color: Colors.blueAccent,
+              gradient: [Colors.blue, Colors.blueGrey],
               onTap: () => _showQuickRateSelector(context, provider),
             ),
-            // POR COBRAR USD
             _KpiCard(
-              title: "Por Cobrar",
+              title: "Total por Cobrar",
               value: "\$ ${AppFormatters.money(debtUsd)}",
-              icon: Icons.account_balance_wallet,
-              color: Colors.orange,
-              gradient: [Colors.orange, Colors.deepOrange],
+              icon: Icons.account_balance_wallet_rounded,
+              color: Colors.orangeAccent,
+              gradient: [Colors.orange, Colors.redAccent],
               isLoading: _isLoadingDebt,
             ),
-            // EQUIVALENTE BS
             _KpiCard(
-              title: "Equivalente",
+              title: "Equivalente Bs.",
               value: "Bs. ${AppFormatters.money(debtBs)}",
-              icon: Icons.currency_exchange,
+              icon: Icons.currency_exchange_rounded,
               color: AppTheme.accentGreen,
               gradient: [AppTheme.accentGreen, Colors.teal],
               isLoading: _isLoadingDebt || provider.isLoading,
@@ -106,7 +100,48 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
         const SliverToBoxAdapter(child: SizedBox(height: 32)),
 
-        // 3. TÍTULO ACTIVIDAD
+        // 2. Sección de Gráficos Visuales (Simulado con Widgets personalizados para evitar dependencias extras)
+        SliverToBoxAdapter(
+          child: Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: AppTheme.surface.withOpacity(0.5),
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(color: Colors.white10),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text("Distribución de Cartera", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+                const SizedBox(height: 20),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _SimpleBar(label: "Lun", value: 0.4, color: Colors.blue),
+                    ),
+                    Expanded(
+                      child: _SimpleBar(label: "Mar", value: 0.7, color: Colors.blue),
+                    ),
+                    Expanded(
+                      child: _SimpleBar(label: "Mie", value: 0.5, color: Colors.blue),
+                    ),
+                    Expanded(
+                      child: _SimpleBar(label: "Jue", value: 0.9, color: Colors.purpleAccent),
+                    ),
+                    Expanded(
+                      child: _SimpleBar(label: "Vie", value: 0.6, color: Colors.blue),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                const Center(child: Text("Histórico de Cobranza (Semana)", style: TextStyle(color: Colors.white38, fontSize: 10))),
+              ],
+            ),
+          ),
+        ),
+
+        const SliverToBoxAdapter(child: SizedBox(height: 32)),
+
         SliverToBoxAdapter(
           child: Padding(
             padding: const EdgeInsets.only(bottom: 16),
@@ -120,7 +155,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ),
         ),
 
-        // 4. LISTA DE MOVIMIENTOS
+        // 3. Lista de Movimientos
         SliverToBoxAdapter(
           child: Container(
             decoration: BoxDecoration(
@@ -177,13 +212,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ),
         ),
         
-        // Espacio final extra para que no se pegue al borde inferior en móvil
         const SliverToBoxAdapter(child: SizedBox(height: 100)),
       ],
     );
   }
 
-  // DIÁLOGO PARA CAMBIAR TASA (Ligeramente retocado)
   void _showQuickRateSelector(BuildContext context, AppStateProvider provider) {
     final manualCtrl = TextEditingController(text: provider.activeRate.toString());
     showModalBottomSheet(
@@ -200,8 +233,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
             const SizedBox(height: 20),
             const Text("Configuración de Tasa", style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
             const SizedBox(height: 24),
-            
-            // Opción BCV
             ListTile(
               title: const Text("Usar Tasa BCV (API)", style: TextStyle(color: Colors.white)),
               subtitle: Text("Detectada: Bs. ${AppFormatters.money(provider.officialRate)}", style: const TextStyle(color: Colors.grey)),
@@ -215,8 +246,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
               tileColor: !provider.isManual ? AppTheme.primary.withOpacity(0.1) : null,
             ),
             const SizedBox(height: 16),
-            
-            // Opción Manual
             TextField(
               controller: manualCtrl,
               keyboardType: const TextInputType.numberWithOptions(decimal: true),
@@ -245,7 +274,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 }
 
-// NUEVA TARJETA KPI MEJORADA
 class _KpiCard extends StatelessWidget {
   final String title;
   final String value;
@@ -266,8 +294,9 @@ class _KpiCard extends StatelessWidget {
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(20),
-          gradient: LinearGradient(colors: [gradient.first.withOpacity(0.15), gradient.last.withOpacity(0.05)], begin: Alignment.topLeft, end: Alignment.bottomRight),
-          border: Border.all(color: color.withOpacity(0.3), width: 1),
+          gradient: LinearGradient(colors: [gradient.first.withOpacity(0.2), gradient.last.withOpacity(0.05)], begin: Alignment.topLeft, end: Alignment.bottomRight),
+          border: Border.all(color: color.withOpacity(0.3), width: 1.5),
+          boxShadow: [BoxShadow(color: color.withOpacity(0.1), blurRadius: 10, spreadRadius: 1)],
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -276,7 +305,7 @@ class _KpiCard extends StatelessWidget {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Flexible(child: Text(title, style: TextStyle(color: AppTheme.secondary, fontSize: 12, fontWeight: FontWeight.w600), maxLines: 1)),
+                Flexible(child: Text(title, style: TextStyle(color: AppTheme.secondary, fontSize: 11, fontWeight: FontWeight.bold), maxLines: 1)),
                 Icon(icon, color: color, size: 18),
               ],
             ),
@@ -288,13 +317,45 @@ class _KpiCard extends StatelessWidget {
                     FittedBox(fit: BoxFit.scaleDown, child: Text(value, style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold))),
                     if (subtitle != null) ...[
                        const SizedBox(height: 2),
-                       Text(subtitle!, style: TextStyle(color: color.withOpacity(0.8), fontSize: 10))
+                       Text(subtitle!, style: TextStyle(color: color.withOpacity(0.8), fontSize: 9))
                     ]
                   ],
                 )
           ],
         ),
       ),
+    );
+  }
+}
+
+class _SimpleBar extends StatelessWidget {
+  final String label;
+  final double value;
+  final Color color;
+  const _SimpleBar({required this.label, required this.value, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Container(
+          height: 80,
+          width: 12,
+          decoration: BoxDecoration(color: Colors.white10, borderRadius: BorderRadius.circular(10)),
+          alignment: Alignment.bottomCenter,
+          child: AnimatedContainer(
+            duration: const Duration(seconds: 1),
+            height: 80 * value,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(colors: [color, color.withOpacity(0.5)], begin: Alignment.topCenter, end: Alignment.bottomCenter),
+              borderRadius: BorderRadius.circular(10),
+              boxShadow: [BoxShadow(color: color.withOpacity(0.3), blurRadius: 5)],
+            ),
+          ),
+        ),
+        const SizedBox(height: 8),
+        Text(label, style: const TextStyle(color: Colors.white38, fontSize: 10)),
+      ],
     );
   }
 }
