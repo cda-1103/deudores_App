@@ -1,5 +1,6 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart'; // Para el portapapeles
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
@@ -98,7 +99,7 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> with Single
     showModalBottomSheet(
       context: context,
       isScrollControlled: true, 
-      backgroundColor: Colors.transparent, // Transparente para el Glass
+      backgroundColor: Colors.transparent, 
       builder: (ctx) => Padding(
         padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
         child: _EditSaleSheet(
@@ -114,7 +115,7 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> with Single
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Colors.transparent, // Transparente para el Glass
+      backgroundColor: Colors.transparent, 
       builder: (ctx) => Padding(
         padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
         child: _EditPaymentSheet(
@@ -125,68 +126,24 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> with Single
     );
   }
 
-  Future<void> _deleteMovement(String movementId) async {
+  Future<bool> _checkAuth(BuildContext context, String message) async {
     final passwordCtrl = TextEditingController();
-
-    bool? authorized = await showDialog<bool>(
+    return await showDialog<bool>(
         context: context,
         builder: (ctx) => AlertDialog(
               backgroundColor: AppTheme.surface,
-              title: const Text("Eliminar Registro", style: TextStyle(color: AppTheme.accentRed, fontWeight: FontWeight.bold)),
+              title: const Text("Autorización Requerida", style: TextStyle(color: AppTheme.accentRed, fontWeight: FontWeight.bold)),
               content: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Text("Esta acción ajustará el saldo. Ingrese Clave:", style: TextStyle(color: Colors.white70)),
+                  Text(message, style: const TextStyle(color: Colors.white70)),
                   const SizedBox(height: 15),
                   TextField(
                     controller: passwordCtrl,
                     obscureText: true,
                     keyboardType: TextInputType.number,
                     style: const TextStyle(color: Colors.white),
-                    decoration: const InputDecoration(hintText: "******", filled: true, fillColor: Colors.black26),
-                  ),
-                ],
-              ),
-              actions: [
-                TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text("Cancelar", style: TextStyle(color: Colors.grey))),
-                ElevatedButton(
-                  style: ElevatedButton.styleFrom(backgroundColor: AppTheme.accentRed),
-                  onPressed: () => passwordCtrl.text == '102030' ? Navigator.pop(ctx, true) : null,
-                  child: const Text("ELIMINAR"),
-                )
-              ],
-            ));
-
-    if (authorized == true) {
-      try {
-        await _supabase.from('movements').delete().eq('id', movementId);
-        _refreshCustomerData(); 
-        if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Registro eliminado"), backgroundColor: AppTheme.accentGreen));
-      } catch (e) {
-        if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error: $e"), backgroundColor: Colors.red));
-      }
-    }
-  }
-
-  Future<void> _deleteThisCustomer() async {
-    final passwordCtrl = TextEditingController();
-
-    bool? authorized = await showDialog<bool>(
-        context: context,
-        builder: (ctx) => AlertDialog(
-              backgroundColor: AppTheme.surface,
-              title: const Text("ELIMINAR CLIENTE", style: TextStyle(color: AppTheme.accentRed, fontWeight: FontWeight.bold)),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Text("Se eliminará todo su historial. Ingrese Clave:", style: TextStyle(color: Colors.white)),
-                  const SizedBox(height: 10),
-                  TextField(
-                    controller: passwordCtrl,
-                    obscureText: true,
-                    keyboardType: TextInputType.number,
-                    style: const TextStyle(color: Colors.white),
-                    decoration: const InputDecoration(hintText: "******", filled: true, fillColor: Colors.black26),
+                    decoration: const InputDecoration(hintText: "Clave (102030)", filled: true, fillColor: Colors.black26),
                   ),
                 ],
               ),
@@ -198,9 +155,23 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> with Single
                   child: const Text("CONFIRMAR"),
                 )
               ],
-            ));
+            )) ?? false;
+  }
 
-    if (authorized == true) {
+  Future<void> _deleteMovement(String movementId) async {
+    if (await _checkAuth(context, "Esta acción ajustará el saldo del cliente.")) {
+      try {
+        await _supabase.from('movements').delete().eq('id', movementId);
+        _refreshCustomerData(); 
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Registro eliminado"), backgroundColor: AppTheme.accentGreen));
+      } catch (e) {
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error: $e"), backgroundColor: Colors.red));
+      }
+    }
+  }
+
+  Future<void> _deleteThisCustomer() async {
+    if (await _checkAuth(context, "Se eliminará EL CLIENTE y TODO su historial para siempre.")) {
       try {
         await _supabase.from('movements').delete().eq('customer_id', widget.customerId);
         await _supabase.from('customers').delete().eq('id', widget.customerId);
@@ -212,6 +183,36 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> with Single
         if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error: $e")));
       }
     }
+  }
+
+  // --- NUEVA FUNCIÓN: VACIAR HISTORIAL ---
+  Future<void> _clearCustomerHistory() async {
+    if (await _checkAuth(context, "Se borrarán TODOS los pedidos y abonos. La deuda quedará en \$0.00. El cliente no se borrará.")) {
+      try {
+        // 1. Borrar todos los movimientos del cliente
+        await _supabase.from('movements').delete().eq('customer_id', widget.customerId);
+        // 2. Resetear balance a 0
+        await _supabase.from('customers').update({'current_balance': 0}).eq('id', widget.customerId);
+        
+        _refreshCustomerData();
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Historial limpiado. Deuda en \$0.00"), backgroundColor: Colors.orangeAccent));
+      } catch (e) {
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error: $e")));
+      }
+    }
+  }
+
+  // --- NUEVA FUNCIÓN: COPIAR AL PORTAPAPELES ---
+  void _copyBalanceToClipboard(double usd, double bs) {
+    final text = "Saldo pendiente: \$${AppFormatters.money(usd)} (Bs. ${AppFormatters.money(bs)})";
+    Clipboard.setData(ClipboardData(text: text));
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Row(children: [Icon(Icons.copy, color: Colors.white), SizedBox(width: 8), Text("Monto copiado al portapapeles")]),
+        backgroundColor: Colors.blueAccent,
+        behavior: SnackBarBehavior.floating,
+      )
+    );
   }
 
   void _showPaymentDialog(BuildContext context, double currentBalance) {
@@ -228,7 +229,7 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> with Single
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (context, setDialogState) => Dialog(
-          backgroundColor: Colors.transparent, // Transparente para el Glass
+          backgroundColor: Colors.transparent, 
           child: _glassContainer(
             padding: const EdgeInsets.all(24),
             child: SingleChildScrollView(
@@ -329,13 +330,15 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> with Single
                     )
                   ),
                   const SizedBox(height: 24),
+                  
+                  // BOTONES MOVIDOS AQUÍ ADENTRO DE LA ESTRUCTURA PRINCIPAL
                   Row(
                     mainAxisAlignment: MainAxisAlignment.end,
                     children: [
-                      TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Cancelar", style: TextStyle(color: Colors.grey))),
+                      TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Cancelar", style: TextStyle(color: Colors.white54))),
                       const SizedBox(width: 8),
                       ElevatedButton(
-                        style: ElevatedButton.styleFrom(backgroundColor: AppTheme.accentGreen, padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+                        style: ElevatedButton.styleFrom(backgroundColor: AppTheme.accentGreen, padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
                         onPressed: () async {
                           final amount = double.tryParse(amountCtrl.text);
                           if (amount != null && amount > 0 && selectedMethod != null) {
@@ -355,7 +358,7 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> with Single
                             }
                           }
                         },
-                        child: const Text("CONFIRMAR PAGO", style: TextStyle(fontWeight: FontWeight.bold)),
+                        child: const Text("CONFIRMAR PAGO", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
                       )
                     ],
                   )
@@ -435,30 +438,14 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> with Single
     final rateStr = provider.activeRate.toStringAsFixed(2);
     final dateStr = DateFormat('dd/MM/yyyy').format(DateTime.now());
 
-    final message = """Hola $name, le escribimos de *BBT TIENDA DE LICORES*.
+    final message = """Hola $name, le escribimos de BBT Licores.
 
 Fecha: $dateStr
-Tasa: $rateStr Bs/\$ 
+Tasa: $rateStr Bs/\$
 
-Su saldo pendiente a la fecha es de: *$amount ($bsAmount BS)*.
+Su saldo pendiente es de: \$$amount ($bsAmount).
 
-Agradecemos su pago.
-
-*Formas de Pago*
-
-*Transferencia:*
-0108-0372-13-0100303675
-Provincial 
-
-*Pago Móvil*
-28205583
-Provincial 
-04247476273
-
-*Zelle*
-bbtiendadelicores@gmail.com
-
-""";
+Agradecemos su pago.""";
 
     final url = Uri.parse("https://wa.me/$cleanPhone?text=${Uri.encodeComponent(message)}");
     if (await canLaunchUrl(url)) await launchUrl(url);
@@ -485,6 +472,10 @@ bbtiendadelicores@gmail.com
           final phone = customerData?['phone'] as String?;
           final displayName = customerData?['name'] ?? widget.customerName;
 
+          // Determinamos el estado del cliente para el Badge
+          String statusText = currentBalance == 0 ? "AL DÍA" : (currentBalance > 0 ? "CON DEUDA" : "A FAVOR");
+          Color statusColor = currentBalance == 0 ? AppTheme.accentGreen : (currentBalance > 0 ? AppTheme.accentRed : Colors.blueAccent);
+
           return Column(
             children: [
               Container(
@@ -508,11 +499,20 @@ bbtiendadelicores@gmail.com
                                     IconButton(icon: const Icon(Icons.edit, color: Colors.blue, size: 20), onPressed: () => _editCustomerData(customerData ?? {})),
                                   ]
                                 ),
-                                Row(children: [
-                                  const Icon(Icons.phone, size: 14, color: Colors.white54),
-                                  const SizedBox(width: 6),
-                                  Text(phone ?? "Sin teléfono", style: const TextStyle(color: Colors.white54, fontSize: 12))
-                                ])
+                                Row(
+                                  children: [
+                                    const Icon(Icons.phone, size: 14, color: Colors.white54),
+                                    const SizedBox(width: 6),
+                                    Text(phone ?? "Sin teléfono", style: const TextStyle(color: Colors.white54, fontSize: 12)),
+                                    const SizedBox(width: 12),
+                                    // Badge de Estado
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                      decoration: BoxDecoration(color: statusColor.withOpacity(0.2), borderRadius: BorderRadius.circular(8), border: Border.all(color: statusColor.withOpacity(0.5))),
+                                      child: Text(statusText, style: TextStyle(color: statusColor, fontSize: 10, fontWeight: FontWeight.bold)),
+                                    )
+                                  ],
+                                )
                               ]
                             )
                           ),
@@ -531,7 +531,17 @@ bbtiendadelicores@gmail.com
                           Column(
                             crossAxisAlignment: CrossAxisAlignment.end,
                             children: [
-                              const Text("DEUDA TOTAL", style: TextStyle(color: Colors.white54, fontSize: 10, letterSpacing: 1.5, fontWeight: FontWeight.bold)),
+                              Row(
+                                children: [
+                                  const Text("DEUDA TOTAL", style: TextStyle(color: Colors.white54, fontSize: 10, letterSpacing: 1.5, fontWeight: FontWeight.bold)),
+                                  const SizedBox(width: 5),
+                                  // BOTÓN COPIAR AL PORTAPAPELES
+                                  InkWell(
+                                    onTap: () => _copyBalanceToClipboard(currentBalance, currentBalance * provider.activeRate),
+                                    child: const Icon(Icons.copy_rounded, color: Colors.blueAccent, size: 14),
+                                  )
+                                ],
+                              ),
                               Text("\$ ${AppFormatters.money(currentBalance)}", style: TextStyle(fontSize: 26, fontWeight: FontWeight.w900, color: currentBalance > 0 ? AppTheme.accentRed : AppTheme.accentGreen)),
                               Text("Bs. ${provider.toBs(currentBalance)}", style: const TextStyle(color: Colors.white38, fontSize: 10)),
                             ],
@@ -543,32 +553,44 @@ bbtiendadelicores@gmail.com
                 ),
               ),
 
+              // Botones de acción rápida
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 child: Row(
                   children: [
-                    Expanded(child: ElevatedButton.icon(onPressed: () => _showPaymentDialog(context, currentBalance), icon: const Icon(Icons.add_card_rounded), label: const Text("REGISTRAR ABONO"), style: ElevatedButton.styleFrom(backgroundColor: AppTheme.accentGreen, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(vertical: 12)))),
+                    Expanded(child: ElevatedButton.icon(onPressed: () => _showPaymentDialog(context, currentBalance), icon: const Icon(Icons.add_card_rounded), label: const Text("REGISTRAR ABONO", style: TextStyle(fontSize: 12)), style: ElevatedButton.styleFrom(backgroundColor: AppTheme.accentGreen, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(vertical: 12)))),
                     const SizedBox(width: 10),
-                    Expanded(child: ElevatedButton.icon(onPressed: () => _launchWhatsApp(phone, currentBalance, provider, displayName), icon: const Icon(Icons.chat_bubble_rounded), label: const Text("ENVIAR SALDO"), style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF25D366), foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(vertical: 12)))),
+                    Expanded(child: ElevatedButton.icon(onPressed: () => _launchWhatsApp(phone, currentBalance, provider, displayName), icon: const Icon(Icons.chat_bubble_rounded), label: const Text("ENVIAR SALDO", style: TextStyle(fontSize: 12)), style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF25D366), foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(vertical: 12)))),
                   ],
                 ),
               ),
               const SizedBox(height: 10),
 
+              // BOTONES DE ZONA DE PELIGRO
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: SizedBox(
-                  width: double.infinity,
-                  child: TextButton.icon(
-                    onPressed: _deleteThisCustomer,
-                    icon: const Icon(Icons.delete_forever_rounded, color: AppTheme.accentRed, size: 20),
-                    label: const Text("ELIMINAR CLIENTE DEL SISTEMA", style: TextStyle(color: AppTheme.accentRed, fontSize: 12, fontWeight: FontWeight.bold, letterSpacing: 1)),
-                    style: TextButton.styleFrom(
-                      backgroundColor: AppTheme.accentRed.withOpacity(0.1),
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: BorderSide(color: AppTheme.accentRed.withOpacity(0.2))),
-                    )
-                  ),
+                child: Row(
+                  children: [
+                    // Botón: Limpiar Historial
+                    Expanded(
+                      child: TextButton.icon(
+                        onPressed: _clearCustomerHistory,
+                        icon: const Icon(Icons.cleaning_services_rounded, color: Colors.orangeAccent, size: 18),
+                        label: const Text("VACIAR HISTORIAL", style: TextStyle(color: Colors.orangeAccent, fontSize: 11, fontWeight: FontWeight.bold)),
+                        style: TextButton.styleFrom(backgroundColor: Colors.orangeAccent.withOpacity(0.1), padding: const EdgeInsets.symmetric(vertical: 12), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide(color: Colors.orangeAccent.withOpacity(0.3))))
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    // Botón: Eliminar Cliente
+                    Expanded(
+                      child: TextButton.icon(
+                        onPressed: _deleteThisCustomer,
+                        icon: const Icon(Icons.delete_forever_rounded, color: AppTheme.accentRed, size: 18),
+                        label: const Text("BORRAR CLIENTE", style: TextStyle(color: AppTheme.accentRed, fontSize: 11, fontWeight: FontWeight.bold)),
+                        style: TextButton.styleFrom(backgroundColor: AppTheme.accentRed.withOpacity(0.1), padding: const EdgeInsets.symmetric(vertical: 12), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide(color: AppTheme.accentRed.withOpacity(0.3))))
+                      ),
+                    ),
+                  ],
                 ),
               ),
               const SizedBox(height: 15),
@@ -974,21 +996,16 @@ class _EditSaleSheetState extends State<_EditSaleSheet> {
     _loadSaleDetails();
   }
 
-  // --- PARSER DE EXCEL OPTIMIZADO ---
   List<Map<String, dynamic>> _extractItemsFromText(String desc) {
     List<Map<String, dynamic>> items = [];
     try {
-      // Limpiamos la descripción de prefijos como "POS: " o "Excel: "
       String cleanDesc = desc.replaceAll("POS:", "").replaceAll("Excel:", "").trim();
-
-      // Separamos por comas o saltos de línea para evaluar cada producto individualmente
       List<String> parts = cleanDesc.split(RegExp(r'[,\n]'));
 
       for (String part in parts) {
         part = part.trim();
         if (part.isEmpty) continue;
 
-        // Intentamos el patrón: [CANTIDAD] [x opcional] [NOMBRE] [PRECIO con o sin $]
         final regex = RegExp(r'^(\d+)\s*x?\s+(.+?)\s*\(?\$?\s*([\d,.]+)\s*\$?\)?$');
         final match = regex.firstMatch(part);
 
@@ -997,14 +1014,8 @@ class _EditSaleSheetState extends State<_EditSaleSheet> {
           String name = match.group(2)!.trim();
           double t = double.parse(match.group(3)!.replaceAll(',', ''));
 
-          items.add({
-            'item_name': name,
-            'quantity': qty,
-            'unit_price': t / (qty > 0 ? qty : 1),
-            'total': t
-          });
+          items.add({'item_name': name, 'quantity': qty, 'unit_price': t / (qty > 0 ? qty : 1), 'total': t});
         } else {
-          // Fallback: Si no tiene cantidad, solo Nombre y Monto al final (ej: "parte sergio 10$")
           final fallbackRegex = RegExp(r'^(.+?)\s*\(?\$?\s*([\d,.]+)\s*\$?\)?$');
           final fbMatch = fallbackRegex.firstMatch(part);
           if (fbMatch != null) {
@@ -1012,7 +1023,6 @@ class _EditSaleSheetState extends State<_EditSaleSheet> {
             double t = double.parse(fbMatch.group(2)!.replaceAll(',', ''));
             items.add({'item_name': name, 'quantity': 1, 'unit_price': t, 'total': t});
           } else {
-             // Si el formato es desconocido, lo registra para edición con monto 0
              items.add({'item_name': part, 'quantity': 1, 'unit_price': 0.0, 'total': 0.0});
           }
         }
@@ -1021,7 +1031,6 @@ class _EditSaleSheetState extends State<_EditSaleSheet> {
       debugPrint("Error parseando items de Excel: $e");
     }
     
-    // SISTEMA ANTIFALLOS: Si no logró encontrar nada válido, mantiene el monto de la deuda para no perder el dinero
     double sumParsed = items.fold(0.0, (s, i) => s + (i['total'] as num));
     if (items.isEmpty || sumParsed == 0.0) {
        items = [{
@@ -1278,7 +1287,6 @@ class _EditSaleSheetState extends State<_EditSaleSheet> {
               )
             ),
 
-            // AVISO DE INTEGRIDAD
             const SizedBox(height: 10),
             Container(
               padding: const EdgeInsets.all(12),
@@ -1293,7 +1301,6 @@ class _EditSaleSheetState extends State<_EditSaleSheet> {
             ),
             const SizedBox(height: 15),
 
-            // Total y Guardar
             Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(color: AppTheme.primary.withOpacity(0.2), borderRadius: BorderRadius.circular(24), border: Border.all(color: AppTheme.primary.withOpacity(0.5))),

@@ -2,27 +2,41 @@
 <html>
 <head>
   <base href="$FLUTTER_BASE_HREF">
+
   <meta charset="UTF-8">
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">
-  <meta name="description" content="A new Flutter project.">
+  <meta name="description" content="BBT Licores App">
 
-  <meta name="mobile-web-app-capable" content="yes">
+  <!-- iOS meta tags & icons -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
   <meta name="apple-mobile-web-app-title" content="deudores_app">
   <link rel="apple-touch-icon" href="icons/Icon-192.png">
 
+  <!-- Favicon -->
   <link rel="icon" type="image/png" href="favicon.png"/>
 
   <title>deudores_app</title>
   <link rel="manifest" href="manifest.json">
-
-  <script>
-    window.flutterConfiguration = {
-      renderer: "canvaskit"
-    };
-  </script>
 </head>
 <body>
+  <!-- ESTE ES EL SECRETO PARA LA FLUIDEZ: FORZAR EL MOTOR HTML -->
   <script src="flutter_bootstrap.js" async></script>
+  <script>
+    window.addEventListener('load', function(ev) {
+      _flutter.loader.load({
+        serviceWorker: {
+          serviceWorkerVersion: serviceWorkerVersion,
+        },
+        onEntrypointLoaded: function(engineInitializer) {
+          engineInitializer.initializeEngine({
+            renderer: "html", // Forzamos HTML Renderer para máxima velocidad y fluidez
+          }).then(function(appRunner) {
+            appRunner.runApp();
+          });
+        }
+      });
+    });
+  </script>
 </body>
 </html>
